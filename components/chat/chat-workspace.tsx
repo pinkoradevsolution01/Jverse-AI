@@ -62,8 +62,10 @@ export function ChatWorkspace() {
       };
     }
 
+    const client = supabase;
+
     async function loadWorkspace() {
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from("workspace_members")
         .select("workspace_id")
         .limit(1)

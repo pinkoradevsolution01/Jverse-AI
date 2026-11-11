@@ -1,0 +1,21 @@
+{
+  "name": "@jverse/desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "JVerse AI desktop authority shell",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "electron .",
+    "dist": "npm run build && electron-builder --config electron-builder.yml"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.11"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "electron": "45.3.0",
+    "electron-builder": "26.18.0",
+    "typescript": "^5.8.0"
+  }
+}

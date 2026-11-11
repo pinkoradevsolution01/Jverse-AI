@@ -1,0 +1,22 @@
+appId: ai.jverse.desktop
+productName: JVerse AI
+directories:
+  output: release
+files:
+  - dist/**
+  - package.json
+asar: true
+electronUpdaterCompatibility: ">= 2.16"
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+mac:
+  target:
+    - dmg
+  hardenedRuntime: true
+linux:
+  target:
+    - AppImage

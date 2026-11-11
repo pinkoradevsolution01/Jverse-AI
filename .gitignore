@@ -21,3 +21,8 @@ next-env.d.ts
 .vercel/
 .turbo/
 coverage/
+electron/dist/
+electron/release/
+
+.vercel
+.env*
