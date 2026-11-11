@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     compat_local_ollama: bool = False
     ollama_url: AnyHttpUrl = "http://127.0.0.1:11434"
     allowed_model: str = "qwen2.5:7b"
+    whisper_model: str = "base.en"
+    whisper_device: str = "auto"
+    whisper_compute_type: str = "int8"
+    piper_executable: str | None = None
+    piper_model_path: str | None = None
 
 
 @lru_cache

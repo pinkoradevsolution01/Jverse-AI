@@ -245,7 +245,7 @@ export function ChatWorkspace() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <VoiceControl speakText={lastAssistantResponse} onTranscript={(text) => setDraft((current) => `${current} ${text}`.trim())} />
+          <VoiceControl speakText={lastAssistantResponse} isThinking={status === "streaming"} onTranscript={(text) => setDraft((current) => `${current} ${text}`.trim())} />
           <button type="button" onClick={startNewConversation} className="inline-flex items-center gap-2 rounded-xl border border-cyan-300/20 px-3 py-2 text-xs font-medium text-cyan-100 transition hover:bg-cyan-300/10">
             <Plus size={15} /> New chat
           </button>

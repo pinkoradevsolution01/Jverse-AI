@@ -2,11 +2,12 @@
 
 import { motion } from "framer-motion";
 
-export type VoiceState = "idle" | "listening" | "thinking" | "speaking" | "error";
+export type VoiceState = "idle" | "listening" | "processing" | "thinking" | "speaking" | "error";
 
 const stateClass: Record<VoiceState, string> = {
   idle: "bg-cyan-300/25 shadow-[0_0_22px_rgba(34,211,238,.28)]",
   listening: "bg-cyan-200 shadow-[0_0_34px_rgba(34,211,238,.78)]",
+  processing: "bg-amber-200 shadow-[0_0_34px_rgba(253,224,71,.72)]",
   thinking: "bg-violet-300 shadow-[0_0_34px_rgba(167,139,250,.72)]",
   speaking: "bg-emerald-300 shadow-[0_0_34px_rgba(110,231,183,.72)]",
   error: "bg-rose-300 shadow-[0_0_30px_rgba(253,164,175,.65)]",

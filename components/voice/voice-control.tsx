@@ -30,7 +30,7 @@ function supportedRecognition() {
   return window.SpeechRecognition ?? window.webkitSpeechRecognition;
 }
 
-export function VoiceControl({ onTranscript, speakText }: { onTranscript(text: string): void; speakText?: string }) {
+function LegacyVoiceControl({ onTranscript, speakText }: { onTranscript(text: string): void; speakText?: string }) {
   const recognition = useRef<RecognitionLike | null>(null);
   const listening = useRef(false);
   const [state, setState] = useState<VoiceState>("idle");
@@ -128,4 +128,109 @@ export function VoiceControl({ onTranscript, speakText }: { onTranscript(text: s
       {notice ? <span role="status" className="hidden max-w-44 text-[10px] text-slate-400 lg:block">{notice}</span> : null}
     </div>
   );
+}
+
+/** Open-source voice client: audio is transcribed by Faster-Whisper and read by Piper. */
+export function VoiceControl({ onTranscript, speakText, isThinking = false }: { onTranscript(text: string): void; speakText?: string; isThinking?: boolean }) {
+  const recorder = useRef<MediaRecorder | null>(null);
+  const stream = useRef<MediaStream | null>(null);
+  const chunks = useRef<Blob[]>([]);
+  const audio = useRef<HTMLAudioElement | null>(null);
+  const [state, setState] = useState<VoiceState>("idle");
+  const [notice, setNotice] = useState("");
+  const [wakeWordOnly, setWakeWordOnly] = useState(false);
+
+  useEffect(() => () => {
+    recorder.current?.stop();
+    stream.current?.getTracks().forEach((track) => track.stop());
+    audio.current?.pause();
+  }, []);
+
+  async function transcribe(recording: Blob) {
+    setState("processing");
+    setNotice("Transcribing locally with Whisper…");
+    const body = new FormData();
+    body.append("audio", recording, "jverse-voice.webm");
+    try {
+      const response = await fetch("/api/voice/transcribe", { method: "POST", body });
+      const result = await response.json().catch(() => null) as { transcript?: string; wake_word_detected?: boolean; command?: string; detail?: string; error?: { message?: string } } | null;
+      if (!response.ok) throw new Error(result?.detail ?? result?.error?.message ?? "Voice transcription could not start.");
+      const transcript = result?.transcript?.trim() ?? "";
+      const command = result?.command?.trim();
+      if (wakeWordOnly && !result?.wake_word_detected) {
+        setNotice('Say “Hey JVerse” followed by your request.');
+      } else if (wakeWordOnly && command) {
+        onTranscript(command);
+        setNotice("Command captured.");
+      } else if (transcript) {
+        onTranscript(transcript.replace(/^\s*(hey\s+)?jverse[\s,.:!-]*/i, ""));
+        setNotice("Voice command captured.");
+      } else {
+        setNotice("I could not hear a command.");
+      }
+      setState("idle");
+    } catch (error) {
+      setState("error");
+      setNotice(error instanceof Error ? error.message : "Voice transcription failed.");
+    }
+  }
+
+  async function startListening() {
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+      setState("error"); setNotice("Voice recording requires the JVerse desktop app or a modern browser."); return;
+    }
+    try {
+      stream.current = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      chunks.current = [];
+      const instance = new MediaRecorder(stream.current, { mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : undefined });
+      instance.ondataavailable = (event) => { if (event.data.size) chunks.current.push(event.data); };
+      instance.onstop = () => {
+        stream.current?.getTracks().forEach((track) => track.stop());
+        stream.current = null;
+        void transcribe(new Blob(chunks.current, { type: instance.mimeType || "audio/webm" }));
+      };
+      recorder.current = instance;
+      instance.start();
+      setState("listening");
+      setNotice(wakeWordOnly ? 'Listening for “Hey JVerse”…' : "Listening…");
+    } catch {
+      setState("error"); setNotice("Microphone permission is required for voice input.");
+    }
+  }
+
+  function stopListening() {
+    if (recorder.current?.state === "recording") recorder.current.stop();
+  }
+
+  async function speak() {
+    if (!speakText?.trim()) { setNotice("There is no assistant response available to read."); return; }
+    setState("speaking"); setNotice("Speaking with Piper…");
+    try {
+      const response = await fetch("/api/voice/speak", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: speakText }) });
+      if (!response.ok) {
+        const result = await response.json().catch(() => null) as { detail?: string; error?: { message?: string } } | null;
+        throw new Error(result?.detail ?? result?.error?.message ?? "Piper speech could not start.");
+      }
+      const url = URL.createObjectURL(await response.blob());
+      audio.current?.pause();
+      const player = new Audio(url);
+      audio.current = player;
+      player.onended = () => { URL.revokeObjectURL(url); setState("idle"); setNotice(""); };
+      player.onerror = () => { URL.revokeObjectURL(url); setState("error"); setNotice("Piper audio could not be played."); };
+      await player.play();
+    } catch (error) {
+      setState("error"); setNotice(error instanceof Error ? error.message : "Piper speech could not start.");
+    }
+  }
+
+  const visualState: VoiceState = state === "idle" && isThinking ? "thinking" : state;
+  return <div className="flex items-center gap-2" aria-label="JVerse voice assistant controls">
+    <VoiceOrb state={visualState} compact />
+    <button type="button" onClick={state === "listening" ? stopListening : () => void startListening()} aria-label={state === "listening" ? "Stop voice input" : "Start voice input"} className="grid h-10 w-10 place-items-center rounded-xl border border-cyan-300/20 text-cyan-100 transition hover:bg-cyan-300/10">
+      {state === "listening" ? <MicOff size={17} /> : <Mic size={17} />}
+    </button>
+    <button type="button" onClick={() => void speak()} aria-label="Read last response aloud with Piper" className="grid h-10 w-10 place-items-center rounded-xl border border-cyan-300/20 text-cyan-100 transition hover:bg-cyan-300/10"><Volume2 size={17} /></button>
+    <button type="button" onClick={() => setWakeWordOnly((current) => !current)} className={`hidden rounded-lg px-2 py-1 text-[10px] font-semibold sm:block ${wakeWordOnly ? "bg-violet-400/20 text-violet-100" : "text-slate-500"}`}>Hey JVerse</button>
+    {notice ? <span role="status" className="hidden max-w-44 text-[10px] text-slate-400 lg:block">{notice}</span> : null}
+  </div>;
 }

@@ -1,10 +1,12 @@
 import json
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, Header, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
+from fastapi.responses import Response, StreamingResponse
 
 from app.contracts.chat import ChatStreamRequest
 from app.contracts.desktop import DesktopActionRequest, DesktopCompletion, DesktopHeartbeat, DesktopModelCompletion, DesktopModelDelta, DesktopPairRequest, DesktopPairResponse
+from app.contracts.voice import VoiceSynthesisRequest, VoiceTranscription
 from app.core.config import Settings, get_settings
 from app.infrastructure.desktop_action_repository import DesktopActionRepository
 from app.infrastructure.model_gateway import CompatibilityOllamaGateway
@@ -12,6 +14,7 @@ from app.infrastructure.supabase_chat_repository import SupabaseChatRepository
 from app.infrastructure.supabase_identity import verify_supabase_access_token
 from app.services.chat_service import ChatService
 from app.services.desktop_service import DesktopService
+from app.services.voice_service import VoiceService, VoiceUnavailableError
 
 router = APIRouter(prefix="/v1")
 
@@ -114,3 +117,24 @@ async def complete_model_job(job_id: str, result: DesktopModelCompletion, device
     except LookupError as error:
         raise HTTPException(status_code=404, detail="model_job_not_running") from error
     return {"ok": True}
+
+
+@router.post("/voice/transcribe", response_model=VoiceTranscription)
+async def transcribe_voice(audio: UploadFile = File(...), _user_id: str = Depends(principal), settings: Settings = Depends(get_settings)):
+    try:
+        transcript = await VoiceService(settings).transcribe(await audio.read(), Path(audio.filename or "voice.webm").suffix)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except VoiceUnavailableError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    wake_word_detected, command = VoiceService.wake_word(transcript)
+    return VoiceTranscription(transcript=transcript, wake_word_detected=wake_word_detected, command=command)
+
+
+@router.post("/voice/speak")
+async def synthesize_voice(request: VoiceSynthesisRequest, _user_id: str = Depends(principal), settings: Settings = Depends(get_settings)):
+    try:
+        audio = await VoiceService(settings).synthesize(request.text)
+    except VoiceUnavailableError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    return Response(content=audio, media_type="audio/wav", headers={"Cache-Control": "no-store"})

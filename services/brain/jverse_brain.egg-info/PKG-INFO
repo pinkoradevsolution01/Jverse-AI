@@ -10,3 +10,5 @@ Requires-Dist: httpx<1,>=0.28
 Requires-Dist: langgraph<1,>=0.2
 Requires-Dist: pypdf<7,>=5
 Requires-Dist: python-docx<2,>=1.1
+Requires-Dist: faster-whisper<2,>=1.1
+Requires-Dist: python-multipart<1,>=0.0.20
