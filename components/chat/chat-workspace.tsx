@@ -15,6 +15,14 @@ type ChatMessage = {
   pending?: boolean;
 };
 
+function storedMessageText(content: unknown) {
+  if (typeof content === "string") return content;
+  if (content && typeof content === "object" && typeof (content as { text?: unknown }).text === "string") {
+    return (content as { text: string }).text;
+  }
+  return "";
+}
+
 function eventBlocks(buffer: string) {
   const blocks = buffer.split("\n\n");
   return { complete: blocks.slice(0, -1), remainder: blocks[blocks.length - 1] ?? "" };
@@ -76,6 +84,29 @@ export function ChatWorkspace() {
           setStatus("error");
           setNotice("A personal workspace could not be loaded for this account.");
           return;
+        }
+        const { data: latestConversation } = await client
+          .from("conversations")
+          .select("id")
+          .eq("workspace_id", data.workspace_id)
+          .is("archived_at", null)
+          .order("last_message_at", { ascending: false, nullsFirst: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (latestConversation?.id) {
+          const { data: history } = await client
+            .from("messages")
+            .select("id, role, content")
+            .eq("conversation_id", latestConversation.id)
+            .order("sequence_number", { ascending: true })
+            .limit(100);
+          if (!active) return;
+          setConversationId(latestConversation.id);
+          setMessages((history ?? [])
+            .filter((item) => item.role === "user" || item.role === "assistant")
+            .map((item) => ({ id: item.id, role: item.role as "user" | "assistant", content: storedMessageText(item.content) }))
+            .filter((item) => item.content.length > 0));
         }
         setWorkspaceId(data.workspace_id);
         setStatus("ready");

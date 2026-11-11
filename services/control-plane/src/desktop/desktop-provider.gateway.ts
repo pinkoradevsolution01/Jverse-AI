@@ -11,6 +11,7 @@ export interface DesktopProviderGateway {
     conversationId: string | null;
     message: string;
     model: string;
+    messages?: Array<{ role: "system" | "user" | "assistant"; content: string }>;
     signal: AbortSignal;
   }): AsyncIterable<ProviderEvent>;
 }

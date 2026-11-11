@@ -41,10 +41,20 @@ function createChatRoute(input) {
         response.flushHeaders();
         const controller = new AbortController();
         request.on("close", () => controller.abort());
-        for await (const event of input.provider.stream({ ...request.body, userId, signal: controller.signal })) {
-            writeEvent(response, event);
-            if (event.type === "error" || event.type === "done")
-                break;
+        try {
+            for await (const event of input.chat.stream({ ...request.body, userId, signal: controller.signal })) {
+                writeEvent(response, event);
+                if (event.type === "error" || event.type === "done")
+                    break;
+            }
+        }
+        catch (error) {
+            const message = error instanceof Error && error.message === "workspace_access_denied"
+                ? "You do not have access to this workspace."
+                : error instanceof Error && error.message === "conversation_not_found"
+                    ? "This conversation could not be found."
+                    : "Chat history could not be prepared.";
+            writeEvent(response, { type: "error", code: "chat_context_failed", message });
         }
         response.end();
     };
