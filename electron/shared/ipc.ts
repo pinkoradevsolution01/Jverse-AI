@@ -1,4 +1,11 @@
-export type OpenResult = { ok: true; path: string } | { ok: false; reason: "cancelled" | "failed" };
+export type PathSelection = { ok: true; path: string } | { ok: false; reason: "cancelled" | "failed" };
+
+export type DesktopAgentStatus = {
+  connected: boolean;
+  deviceId?: string;
+  lastError?: string;
+  lastSeenAt?: string;
+};
 
 export type DesktopNotification = {
   title: string;
@@ -14,10 +21,11 @@ export type DesktopUpdateEvent =
   | { type: "error"; message: string };
 
 export type DesktopApi = {
-  openFile(): Promise<OpenResult>;
-  openFolder(): Promise<OpenResult>;
-  openApplication(): Promise<OpenResult>;
-  notify(notification: DesktopNotification): Promise<boolean>;
+  /** Selects a target only. Opening it requires Python Agent approval. */
+  pickFile(): Promise<PathSelection>;
+  pickFolder(): Promise<PathSelection>;
+  pickApplication(): Promise<PathSelection>;
+  agentStatus(): Promise<DesktopAgentStatus>;
   updates: {
     check(): Promise<void>;
     download(): Promise<void>;

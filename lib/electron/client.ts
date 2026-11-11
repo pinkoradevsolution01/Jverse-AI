@@ -1,9 +1,9 @@
 export type DesktopCapabilityState = { available: boolean; reason?: "web" | "bridge_unavailable" };
 export type DesktopBridge = {
-  openFile(): Promise<{ ok: boolean; path?: string }>;
-  openFolder(): Promise<{ ok: boolean; path?: string }>;
-  openApplication(): Promise<{ ok: boolean; path?: string }>;
-  notify(input: { title: string; body: string }): Promise<boolean>;
+  pickFile(): Promise<{ ok: boolean; path?: string }>;
+  pickFolder(): Promise<{ ok: boolean; path?: string }>;
+  pickApplication(): Promise<{ ok: boolean; path?: string }>;
+  agentStatus(): Promise<{ connected: boolean; deviceId?: string; lastError?: string }>;
 };
 
 declare global {

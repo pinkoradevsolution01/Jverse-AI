@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain } from "electron";
 
 import { DesktopOsActions } from "./os-actions";
+import { AgentDesktopBridge } from "./agent-bridge";
 import { assertTrustedRenderer } from "./security";
 import { DesktopUpdater } from "./updater";
 import type { DesktopNotification } from "../shared/ipc";
@@ -18,24 +19,21 @@ function validNotification(value: unknown): value is DesktopNotification {
     && typeof notification.body === "string" && notification.body.length <= 1_000;
 }
 
-export function registerDesktopIpc(updater: DesktopUpdater) {
+export function registerDesktopIpc(updater: DesktopUpdater, bridge: AgentDesktopBridge) {
   const os = new DesktopOsActions();
-  ipcMain.handle("desktop:open-file", (event) => {
+  ipcMain.handle("desktop:pick-file", (event) => {
     assertTrustedRenderer(event);
     return os.openFile(parentWindow(event));
   });
-  ipcMain.handle("desktop:open-folder", (event) => {
+  ipcMain.handle("desktop:pick-folder", (event) => {
     assertTrustedRenderer(event);
     return os.openFolder(parentWindow(event));
   });
-  ipcMain.handle("desktop:open-application", (event) => {
+  ipcMain.handle("desktop:pick-application", (event) => {
     assertTrustedRenderer(event);
     return os.openApplication(parentWindow(event));
   });
-  ipcMain.handle("desktop:notify", (event, notification: unknown) => {
-    assertTrustedRenderer(event);
-    return validNotification(notification) && os.notify(notification);
-  });
+  ipcMain.handle("desktop:agent-status", (event) => { assertTrustedRenderer(event); return bridge.status(); });
   ipcMain.handle("desktop:updates:check", async (event) => {
     assertTrustedRenderer(event);
     await updater.check();

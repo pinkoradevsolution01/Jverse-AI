@@ -2,11 +2,14 @@ import { app, BrowserWindow, Menu, nativeImage, session, Tray } from "electron";
 import path from "node:path";
 
 import { registerDesktopIpc } from "./ipc";
+import { AgentDesktopBridge } from "./agent-bridge";
+import { DesktopOsActions } from "./os-actions";
 import { isAllowedNavigation, isTrustedRenderer } from "./security";
 import { DesktopUpdater } from "./updater";
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+let desktopBridge: AgentDesktopBridge | null = null;
 
 function rendererUrl() {
   if (!app.isPackaged) return process.env.ELECTRON_RENDERER_URL ?? "http://localhost:3000";
@@ -64,7 +67,9 @@ app.whenReady().then(() => {
   const window = createWindow();
   const updater = new DesktopUpdater(window);
   updater.initialise();
-  registerDesktopIpc(updater);
+  desktopBridge = new AgentDesktopBridge(new DesktopOsActions());
+  registerDesktopIpc(updater, desktopBridge);
+  desktopBridge.start();
   createTray();
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
@@ -72,3 +77,5 @@ app.whenReady().then(() => {
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
+
+app.on("before-quit", () => desktopBridge?.stop());

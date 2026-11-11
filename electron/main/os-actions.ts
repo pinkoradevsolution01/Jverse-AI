@@ -1,22 +1,23 @@
 import { BrowserWindow, dialog, Notification, shell } from "electron";
+import fs from "node:fs/promises";
+import path from "node:path";
 
-import type { DesktopNotification, OpenResult } from "../shared/ipc";
+import type { DesktopNotification, PathSelection } from "../shared/ipc";
 
-async function openSelectedPath(parent: BrowserWindow, options: Electron.OpenDialogOptions): Promise<OpenResult> {
+async function selectPath(parent: BrowserWindow, options: Electron.OpenDialogOptions): Promise<PathSelection> {
   const selection = await dialog.showOpenDialog(parent, options);
   if (selection.canceled || !selection.filePaths[0]) return { ok: false, reason: "cancelled" };
   const path = selection.filePaths[0];
-  const error = await shell.openPath(path);
-  return error ? { ok: false, reason: "failed" } : { ok: true, path };
+  return { ok: true, path };
 }
 
 export class DesktopOsActions {
   openFile(parent: BrowserWindow) {
-    return openSelectedPath(parent, { title: "Open file", properties: ["openFile"] });
+    return selectPath(parent, { title: "Select file for JVerse Agent", properties: ["openFile"] });
   }
 
   openFolder(parent: BrowserWindow) {
-    return openSelectedPath(parent, { title: "Open folder", properties: ["openDirectory"] });
+    return selectPath(parent, { title: "Select folder for JVerse Agent", properties: ["openDirectory"] });
   }
 
   openApplication(parent: BrowserWindow) {
@@ -25,7 +26,15 @@ export class DesktopOsActions {
       : process.platform === "darwin"
         ? [{ name: "Applications", extensions: ["app"] }]
         : [{ name: "Applications", extensions: ["desktop", "appimage", "sh"] }];
-    return openSelectedPath(parent, { title: "Open application", properties: ["openFile"], filters });
+    return selectPath(parent, { title: "Select application for JVerse Agent", properties: ["openFile"], filters });
+  }
+
+  async openPath(target: string | undefined, expected: "file" | "folder" | "application"): Promise<PathSelection> {
+    if (!target || !path.isAbsolute(target)) return { ok: false, reason: "failed" };
+    const stat = await fs.stat(target).catch(() => undefined);
+    if (!stat || (expected === "folder" ? !stat.isDirectory() : !stat.isFile())) return { ok: false, reason: "failed" };
+    const error = await shell.openPath(target);
+    return error ? { ok: false, reason: "failed" } : { ok: true, path: target };
   }
 
   notify(notification: DesktopNotification) {
