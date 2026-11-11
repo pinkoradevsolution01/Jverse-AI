@@ -1,0 +1,2 @@
+"use client";
+export default function ErrorState({ reset }: { reset: () => void }) { return <div className="grid min-h-screen place-items-center bg-[#050816] p-6 text-center text-white"><div><p className="text-lg font-semibold">The workspace needs a moment.</p><p className="mt-2 text-sm text-zinc-500">No work was changed. You can safely try this view again.</p><button onClick={reset} className="mt-5 rounded-xl bg-cyan-300 px-4 py-2 text-sm font-bold text-[#050816]">Try again</button></div></div>; }

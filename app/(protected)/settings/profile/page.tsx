@@ -1,0 +1,2 @@
+import { ProfileForm } from "../../../../components/auth/profile-form";
+export default function Page() { return <div className="mx-auto max-w-6xl py-5"><p className="text-[11px] font-bold tracking-[.18em] text-cyan-300">IDENTITY</p><h1 className="mt-3 text-4xl font-semibold">Your profile</h1><p className="mt-3 text-sm text-zinc-400">Control how JVerse identifies you in your workspace.</p><div className="mt-8"><ProfileForm /></div></div>; }
