@@ -1,8 +1,8 @@
-import { app, BrowserWindow, Menu, nativeImage, Tray } from "electron";
+import { app, BrowserWindow, Menu, nativeImage, session, Tray } from "electron";
 import path from "node:path";
 
 import { registerDesktopIpc } from "./ipc";
-import { isAllowedNavigation } from "./security";
+import { isAllowedNavigation, isTrustedRenderer } from "./security";
 import { DesktopUpdater } from "./updater";
 
 let mainWindow: BrowserWindow | null = null;
@@ -55,6 +55,12 @@ function createTray() {
 
 app.whenReady().then(() => {
   app.setAppUserModelId("ai.jverse.desktop");
+  session.defaultSession.setPermissionCheckHandler((webContents, permission) => (
+    permission === "media" && isTrustedRenderer(webContents?.getURL() ?? "")
+  ));
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    callback(permission === "media" && isTrustedRenderer(webContents?.getURL() ?? ""));
+  });
   const window = createWindow();
   const updater = new DesktopUpdater(window);
   updater.initialise();

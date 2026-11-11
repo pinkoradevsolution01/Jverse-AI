@@ -7,6 +7,7 @@ import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "
 
 import { DEFAULT_QWEN_MODEL, type ChatStreamEvent } from "../../lib/ai/contracts";
 import { MarkdownMessage } from "./markdown-message";
+import { VoiceControl } from "../voice/voice-control";
 
 type ChatMessage = {
   id: string;
@@ -124,6 +125,7 @@ export function ChatWorkspace() {
   }, [messages]);
 
   const stopStreaming = () => abortRef.current?.abort();
+  const lastAssistantResponse = [...messages].reverse().find((message) => message.role === "assistant" && !message.pending)?.content;
 
   async function submit(event?: FormEvent) {
     event?.preventDefault();
@@ -212,9 +214,12 @@ export function ChatWorkspace() {
             <p className="text-xs text-slate-400">Qwen 2.5 · scoped memory · streaming</p>
           </div>
         </div>
-        <button type="button" onClick={startNewConversation} className="inline-flex items-center gap-2 rounded-xl border border-cyan-300/20 px-3 py-2 text-xs font-medium text-cyan-100 transition hover:bg-cyan-300/10">
-          <Plus size={15} /> New chat
-        </button>
+        <div className="flex items-center gap-2">
+          <VoiceControl speakText={lastAssistantResponse} onTranscript={(text) => setDraft((current) => `${current} ${text}`.trim())} />
+          <button type="button" onClick={startNewConversation} className="inline-flex items-center gap-2 rounded-xl border border-cyan-300/20 px-3 py-2 text-xs font-medium text-cyan-100 transition hover:bg-cyan-300/10">
+            <Plus size={15} /> New chat
+          </button>
+        </div>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-cyan-300/15 bg-[#071326]/65">
