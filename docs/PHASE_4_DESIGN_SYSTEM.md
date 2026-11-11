@@ -1,7 +1,7 @@
 # Phase 4 — JVerse AI Design System
 
 **Status:** Source-of-truth visual and interaction specification  
-**Governing sources:** Phase 1 Reference Architecture, Phase 2 Backend, Phase 3 Authentication Module  
+**Governing sources:** Phase 1 Reference Architecture, Phase 2 Backend, Phase 3 Authentication Module, ADR-0009 JARVIS Local Brain
 **Implementation platforms:** Next.js, Tailwind CSS, shadcn/ui, Framer Motion, React Three Fiber, Electron  
 **Default theme:** JVerse Night
 
@@ -257,7 +257,7 @@ shadcn/ui is the accessible primitive base. JVerse composes and styles it; it do
 | MetricCard | GlassPanel + trend + chart slot | One question per card; does not overload metrics |
 | EmptyState | Illustration/AI-core static asset + title + next action | Must name why it is empty and how to proceed |
 | ConnectionBanner | Status + retry/details | Reserved for model, sync, auth, or network state |
-| VoiceControl | Push-to-talk control + state label + privacy cue | Listening state is unmistakable and user-controllable |
+| VoiceControl | Push-to-talk control + state label + privacy cue | Electron/Whisper/Piper state is unmistakable and user-controllable; browser speech is development fallback only |
 
 ### 6.3 States every component must specify
 
@@ -449,7 +449,7 @@ React Three Fiber is an enhancement layer, never an information or control depen
 | Speaking | Cyan dominant | Real waveform/outward pulse | Speaking |
 | Error/offline | Rose/neutral, reduced glow | Motion stops | Attention needed / Offline |
 
-The visual state is driven only by the agent/voice state machine defined in Phase 1. It never pretends to be listening, thinking, or speaking.
+The visual state is driven only by the agent/voice state machine defined in Phase 1 and ADR-0009. Whisper/Piper/Electron events are authoritative in desktop production; it never pretends to be listening, thinking, or speaking.
 
 ### 11.3 Performance and fallback
 

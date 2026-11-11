@@ -1,6 +1,6 @@
 # JVerse AI — Reference Architecture
 
-**Status:** Source-of-truth baseline  
+**Status:** Source-of-truth baseline, amended by ADR-0009
 **Scope:** Web, desktop, local AI runtime, cloud data plane, and agent orchestration.  
 **Rule:** This is implementation-neutral. It deliberately contains no implementation code.
 
@@ -16,6 +16,21 @@
 
 ## 2. Complete system architecture
 
+### JARVIS local-brain amendment (ADR-0009)
+
+The following authority model supersedes any conflicting Node/browser-voice wording in this document:
+
+| System | JARVIS responsibility | Authority boundary |
+|---|---|---|
+| Python brain | Intent, planning, safety, retrieval orchestration, streaming, run lifecycle | Trusted service; never rendered in the browser |
+| Ollama + Qwen 2.5 | Local reasoning and generation | Local model runtime; never browser-reachable |
+| Electron main | Hands and eyes: OS actions, local model bridge, microphone/speaker lifecycle, screen-capability adapters | Sole privileged device authority |
+| Supabase | Identity, durable memory, conversations, knowledge, audit, sync | Cloud source of truth with RLS |
+| Whisper + Piper | Local STT and TTS | Electron-owned local voice runtime; raw audio stays local by default |
+| Next.js | Interface: chat, visual state, approvals, controls | Untrusted presentation/BFF surface |
+
+The existing TypeScript Express control plane and browser speech APIs are transitional compatibility implementations. They must be removed from the production path after the Python brain and Electron voice adapters meet the replacement acceptance tests in ADR-0009.
+
 ### Logical layers
 
 | Layer | Components | Responsibility | Trust |
@@ -23,9 +38,9 @@
 | Presentation | Next.js 15, Tailwind, shadcn/ui, Framer Motion, React Three Fiber | Chat, dashboard, projects, settings, voice UI, AI-core visualization | Untrusted client |
 | Client state | TanStack Query, Zustand stores | Remote cache and ephemeral interaction state | Untrusted client |
 | Web gateway | Next.js BFF routes/server actions | SSR and narrow session-aware presentation endpoints | Trusted server |
-| Control plane | Node.js + Express | Orchestration, policy, retrieval, ingestion, exports, integrations | Trusted server |
+| Control plane | Python + FastAPI | Orchestration, policy, retrieval, ingestion, exports, integrations | Trusted server |
 | Cloud platform | Supabase Auth, Postgres/pgvector, Storage, Realtime, Edge Functions | Identity, durable data, vectors, files, database-triggered work | Managed trusted |
-| Local AI | Ollama, Qwen 2.5 default, optional Llama 3 | Inference, embeddings, offline work | Trusted local |
+| Local intelligence | Ollama, Qwen 2.5 default, Whisper STT, Piper TTS | Generation, transcription, synthesis, offline work | Trusted local |
 | Desktop shell | Electron main/preload/renderer | Lifecycle plus capability bridge | Privileged local |
 | OS adapters | Apps, files, system, notifications, voice | Validated native operations | Privileged local |
 | Operations | Audit events, logs, metrics | Safety, reliability, support, quality | Trusted only |
@@ -48,7 +63,7 @@ flowchart TB
   Local <--> API
 ~~~
 
-Deploy Next.js to Vercel, Supabase as managed data services, Express/workers as long-running Node services, and Electron through Electron Builder. Web must never depend on Electron or a local Ollama server.
+Deploy Next.js to Vercel, Supabase as managed data services, the Python brain as a long-running service, and Electron through Electron Builder. Web must never depend directly on Electron, a local Ollama server, Whisper, or Piper.
 
 ### Runtime capability matrix
 
@@ -421,7 +436,7 @@ Phase gates: no desktop capability without IPC schema, policy tier, allowlist, c
 
 1. Supabase Postgres with pgvector is the initial product and semantic-search source of truth.
 2. Ollama is a local runtime adapter, never a browser dependency. Qwen 2.5 is default; model/version is recorded per run.
-3. Express is the trusted control plane; Next.js is the web experience and narrow BFF.
+3. Python/FastAPI is the trusted brain and control plane; Next.js is the web experience and narrow BFF. The Node/Express service is a temporary compatibility adapter only.
 4. Electron main is the sole desktop authority behind narrow typed versioned IPC.
 5. The agent is constrained and approval-driven, never an autonomous shell/OS actor.
 6. Cloud state is authoritative; local state is an encrypted cache/offline workspace with idempotent sync.

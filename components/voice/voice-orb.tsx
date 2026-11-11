@@ -20,7 +20,8 @@ export function VoiceOrb({ state, compact = false }: { state: VoiceState; compac
       transition={{ duration: state === "speaking" ? 0.7 : 1.35, repeat: state === "idle" ? 0 : Infinity, ease: "easeInOut" }}
       className={`relative grid shrink-0 place-items-center rounded-full ${compact ? "h-8 w-8" : "h-14 w-14"} ${stateClass[state]}`}
     >
-      <span className={`rounded-full bg-[#071326]/80 ${compact ? "h-3 w-3" : "h-5 w-5"}`} />
+      <span className={`relative z-10 rounded-full bg-[#071326]/80 ${compact ? "h-3 w-3" : "h-5 w-5"}`} />
+      {state !== "idle" ? <motion.span className="absolute inset-[-25%] rounded-full border border-current opacity-40" animate={{ scale: [0.85, 1.18, 0.85], opacity: [0.5, 0.08, 0.5] }} transition={{ duration: state === "speaking" ? 0.65 : 1.4, repeat: Infinity, ease: "easeInOut" }} /> : null}
       {state === "listening" ? <span className="absolute inset-0 rounded-full border border-cyan-100/80" /> : null}
     </motion.span>
   );

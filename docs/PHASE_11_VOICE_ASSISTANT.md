@@ -1,8 +1,10 @@
 # Phase 11 — Voice Assistant
 
+> **Architecture amendment:** ADR-0009 supersedes this initial browser-native implementation for production. The target JARVIS voice runtime is Electron main process + local Whisper STT + local Piper TTS. Browser speech APIs remain a development fallback only.
+
 ## Runtime architecture
 
-`ChatWorkspace` owns the visible voice controls. `VoiceControl` requests microphone access only after an explicit user click, runs browser-native speech recognition where supported, and inserts the final transcript into the chat composer. It never records or uploads raw audio.
+`ChatWorkspace` owns the visible voice controls. In production, Electron main owns the consented microphone session, Whisper transcription, Piper playback, and wake-word lifecycle; the renderer receives only typed state and final transcript events. The present browser-native `VoiceControl` is a development fallback and never records or uploads raw audio.
 
 `VoiceOrb` is a Framer Motion state indicator:
 
@@ -17,17 +19,17 @@ The Electron main process permits Chromium `media` permission solely for a trust
 ## Audio pipeline
 
 ```text
-User click → getUserMedia permission → browser-native STT
-           → final transcript → chat composer → protected chat stream
+User click / local wake word → Electron microphone session → Whisper STT
+                         → final transcript → chat composer → Python brain
 
-Assistant Markdown → user click “read response” → speechSynthesis → local device speaker
+Assistant response → user-enabled voice output → Piper TTS → local device speaker
 ```
 
 No audio blob, transcript, or voice profile is sent to Supabase by the voice UI. A submitted voice transcript follows the ordinary Phase 6 chat path and is stored as a chat message under its existing RLS policy.
 
 ## Wake word
 
-The initial implementation provides opt-in *active recognition* wake phrase detection: “Hey JVerse” or “JVerse”. It is off by default, stops with the microphone control, and does not operate while the app is closed.
+The initial development fallback provides opt-in *active recognition* wake phrase detection: “Hey JVerse” or “JVerse”. The production implementation is a local Electron-owned wake-word provider: it is off by default, visibly active, device-bound, stops with the microphone control, and does not operate while the app is closed.
 
 An always-on offline wake-word engine requires a separately approved native provider/model asset. It must run only in Electron main process, be paired to a device registration, and expose only `wake`, `listening`, and `error` events to the renderer. It must not expose raw microphone streams through preload.
 

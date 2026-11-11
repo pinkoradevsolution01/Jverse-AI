@@ -23,7 +23,7 @@ flowchart TB
   E --> G[(Supabase run + audit record)]
 ```
 
-The agent runs only in the Node control plane. It never receives service-role credentials in a prompt, never exposes raw tool schemas to the browser, and never gives Qwen 2.5 unbounded tool access. Every tool call is policy-validated and durable execution state is recorded in Supabase through the existing Phase 2 agent/run/audit data model.
+The agent runs only in the Python brain/control plane. It never receives service-role credentials in a prompt, never exposes raw tool schemas to the browser, and never gives Qwen 2.5 unbounded tool access. Every tool call is policy-validated and durable execution state is recorded in Supabase through the existing Phase 2 agent/run/audit data model. The existing Node service is transitional and must not become a second agent authority.
 
 ## Planning system
 
