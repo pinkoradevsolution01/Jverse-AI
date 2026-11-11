@@ -55,3 +55,12 @@ class DesktopCompletion(BaseModel):
     ok: bool
     path: str | None = Field(default=None, max_length=8_192)
     reason: str | None = Field(default=None, max_length=1_000)
+
+
+class DesktopModelDelta(BaseModel):
+    text: str = Field(min_length=1, max_length=16_000)
+
+
+class DesktopModelCompletion(BaseModel):
+    ok: bool
+    error_code: str | None = Field(default=None, max_length=120)

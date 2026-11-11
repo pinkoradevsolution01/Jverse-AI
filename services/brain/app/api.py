@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.contracts.chat import ChatStreamRequest
-from app.contracts.desktop import DesktopActionRequest, DesktopCompletion, DesktopHeartbeat, DesktopPairRequest, DesktopPairResponse
+from app.contracts.desktop import DesktopActionRequest, DesktopCompletion, DesktopHeartbeat, DesktopModelCompletion, DesktopModelDelta, DesktopPairRequest, DesktopPairResponse
 from app.core.config import Settings, get_settings
 from app.infrastructure.desktop_action_repository import DesktopActionRepository
 from app.infrastructure.model_gateway import CompatibilityOllamaGateway
@@ -37,7 +37,8 @@ async def desktop_principal(
 
 @router.post("/chat/stream")
 async def chat_stream(request: ChatStreamRequest, user_id: str = Depends(principal), settings: Settings = Depends(get_settings)):
-    service = ChatService(CompatibilityOllamaGateway(settings), SupabaseChatRepository(settings))
+    desktop_repository = DesktopActionRepository(settings)
+    service = ChatService(CompatibilityOllamaGateway(settings, desktop_repository), SupabaseChatRepository(settings), desktop_repository)
     async def events():
         try:
             async for event in service.stream(request, user_id):
@@ -89,4 +90,27 @@ async def complete_desktop_command(action_id: str, result: DesktopCompletion, de
         await DesktopActionRepository(settings).complete(action_id, device["id"], result.ok, result.model_dump(exclude_none=True))
     except LookupError as error:
         raise HTTPException(status_code=404, detail="action_not_executing") from error
+    return {"ok": True}
+
+
+@router.get("/desktop/model-jobs/next")
+async def next_model_job(device: dict = Depends(desktop_principal), settings: Settings = Depends(get_settings)):
+    return await DesktopActionRepository(settings).claim_next_model_job(device["id"])
+
+
+@router.post("/desktop/model-jobs/{job_id}/delta")
+async def append_model_job_delta(job_id: str, delta: DesktopModelDelta, device: dict = Depends(desktop_principal), settings: Settings = Depends(get_settings)):
+    try:
+        await DesktopActionRepository(settings).append_model_delta(job_id, device["id"], delta.text)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail="model_job_not_running") from error
+    return {"ok": True}
+
+
+@router.post("/desktop/model-jobs/{job_id}/complete")
+async def complete_model_job(job_id: str, result: DesktopModelCompletion, device: dict = Depends(desktop_principal), settings: Settings = Depends(get_settings)):
+    try:
+        await DesktopActionRepository(settings).complete_model_job(job_id, device["id"], result.ok, result.error_code)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail="model_job_not_running") from error
     return {"ok": True}

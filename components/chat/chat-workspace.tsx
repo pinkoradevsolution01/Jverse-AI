@@ -16,6 +16,8 @@ type ChatMessage = {
   pending?: boolean;
 };
 
+type PendingApproval = { actionId: string; targetSummary: string; expiresAt?: string; state: "pending" | "approved" | "failed" };
+
 function storedMessageText(content: unknown) {
   if (typeof content === "string") return content;
   if (content && typeof content === "object" && typeof (content as { text?: unknown }).text === "string") {
@@ -38,7 +40,18 @@ function parseSseEvent(block: string): ChatStreamEvent | null {
 
   if (!data) return null;
   try {
-    return JSON.parse(data) as ChatStreamEvent;
+    const event = JSON.parse(data) as { type?: string; payload?: Record<string, unknown> } & Record<string, unknown>;
+    const payload = event.payload;
+    if (payload && typeof event.type === "string") {
+      if (event.type === "metadata") return { type: "metadata", conversationId: String(payload.conversation_id ?? ""), messageId: "" };
+      if (event.type === "delta") return { type: "delta", text: String(payload.text ?? "") };
+      if (event.type === "status") return { type: "status", state: String(payload.state ?? "working"), intent: typeof payload.intent === "string" ? payload.intent : undefined, plan: Array.isArray(payload.plan) ? payload.plan.filter((item): item is string => typeof item === "string") : undefined };
+      if (event.type === "tool") return { type: "tool", result: String(payload.result ?? "") };
+      if (event.type === "approval") return { type: "approval", actionId: String(payload.action_id ?? ""), targetSummary: String(payload.target_summary ?? "Desktop action"), expiresAt: typeof payload.expires_at === "string" ? payload.expires_at : undefined };
+      if (event.type === "error") return { type: "error", code: String(payload.code ?? "unavailable"), message: String(payload.message ?? "The agent is unavailable.") };
+      if (event.type === "done") return { type: "done" };
+    }
+    return event as ChatStreamEvent;
   } catch {
     return null;
   }
@@ -51,6 +64,7 @@ export function ChatWorkspace() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<"ready" | "loading" | "streaming" | "error">("loading");
   const [notice, setNotice] = useState("Loading your personal workspace…");
+  const [approvals, setApprovals] = useState<PendingApproval[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -173,6 +187,10 @@ export function ChatWorkspace() {
               : item));
           }
           if (streamEvent.type === "error") throw new Error(streamEvent.message);
+          if (streamEvent.type === "tool") setNotice(streamEvent.result);
+          if (streamEvent.type === "approval" && streamEvent.actionId) {
+            setApprovals((current) => [...current, { actionId: streamEvent.actionId, targetSummary: streamEvent.targetSummary, expiresAt: streamEvent.expiresAt, state: "pending" }]);
+          }
         }
       }
     } catch (error) {
@@ -202,6 +220,18 @@ export function ChatWorkspace() {
     setMessages([]);
     setNotice("");
     setStatus(workspaceId ? "ready" : "loading");
+  }
+
+  async function approveAction(actionId: string) {
+    setApprovals((current) => current.map((item) => item.actionId === actionId ? { ...item, state: "approved" } : item));
+    try {
+      const response = await fetch(`/api/desktop/actions/${encodeURIComponent(actionId)}/approve`, { method: "POST" });
+      if (!response.ok) throw new Error("Approval could not be completed.");
+      setNotice("Desktop action approved. Your paired Electron app will execute it shortly.");
+    } catch (error) {
+      setApprovals((current) => current.map((item) => item.actionId === actionId ? { ...item, state: "failed" } : item));
+      setNotice(error instanceof Error ? error.message : "Approval could not be completed.");
+    }
   }
 
   return (
@@ -244,6 +274,14 @@ export function ChatWorkspace() {
             ))}
           </AnimatePresence>
           {notice ? <p role="status" className="rounded-xl border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-sm text-amber-100">{notice}</p> : null}
+          {approvals.map((approval) => (
+            <div key={approval.actionId} className="rounded-xl border border-violet-300/25 bg-violet-300/10 p-3 text-sm text-violet-50">
+              <p className="font-medium">Desktop approval required</p><p className="mt-1 text-xs text-violet-100/80">{approval.targetSummary}</p>
+              {approval.state === "pending" ? <button type="button" onClick={() => void approveAction(approval.actionId)} className="mt-3 rounded-lg bg-violet-300 px-3 py-2 text-xs font-bold text-[#150526]">Approve and execute</button> : null}
+              {approval.state === "approved" ? <p className="mt-3 text-xs text-violet-100">Approved — waiting for paired desktop.</p> : null}
+              {approval.state === "failed" ? <p className="mt-3 text-xs text-rose-200">Approval failed. Try again.</p> : null}
+            </div>
+          ))}
           <div ref={bottomRef} />
         </div>
 

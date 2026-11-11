@@ -14,15 +14,12 @@ function errorResponse(message: string, status: number) {
 export async function POST(request: Request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const agentUrl = process.env.PYTHON_AGENT_URL;
   const controlPlaneUrl = process.env.AI_CONTROL_PLANE_URL;
   const controlPlaneToken = process.env.AI_CONTROL_PLANE_TOKEN;
 
   if (!supabaseUrl || !supabaseKey) {
     return errorResponse("Supabase session validation is not configured.", 503);
-  }
-
-  if (!controlPlaneUrl || !controlPlaneToken) {
-    return errorResponse("The JVerse AI control plane is not configured.", 503);
   }
 
   const cookieStore = await cookies();
@@ -33,6 +30,7 @@ export async function POST(request: Request) {
     },
   });
   const { data: { user }, error: userError } = await supabase.auth.getUser();
+  const { data: { session } } = await supabase.auth.getSession();
 
   if (userError || !user) {
     return errorResponse("Authentication is required to start a chat.", 401);
@@ -48,7 +46,16 @@ export async function POST(request: Request) {
 
   let upstream: Response;
   try {
-    upstream = await fetch(`${controlPlaneUrl.replace(/\/$/, "")}/v1/chat/stream`, {
+    if (agentUrl && session?.access_token) {
+      upstream = await fetch(`${agentUrl.replace(/\/$/, "")}/v1/chat/stream`, {
+        method: "POST",
+        headers: { Accept: "text/event-stream", "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify(payload), signal: request.signal, cache: "no-store",
+      });
+    } else if (controlPlaneUrl && controlPlaneToken) {
+      // Temporary local-development fallback while the public Python Agent is
+      // not configured. Production should use PYTHON_AGENT_URL.
+      upstream = await fetch(`${controlPlaneUrl.replace(/\/$/, "")}/v1/chat/stream`, {
       method: "POST",
       headers: {
         Accept: "text/event-stream",
@@ -59,9 +66,12 @@ export async function POST(request: Request) {
       body: JSON.stringify(payload),
       signal: request.signal,
       cache: "no-store",
-    });
+      });
+    } else {
+      return errorResponse("The JVerse Python Agent is not configured.", 503);
+    }
   } catch {
-    return errorResponse("The JVerse AI control plane is offline.", 503);
+    return errorResponse("The JVerse Python Agent is offline.", 503);
   }
 
   if (!upstream.ok || !upstream.body) {

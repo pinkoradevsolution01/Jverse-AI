@@ -55,6 +55,27 @@ class SupabaseChatRepository:
         response.raise_for_status()
         return [row["content"] for row in response.json() if isinstance(row.get("content"), str)]
 
+    async def latest_project_notes(self, workspace_id: str, limit: int = 6) -> list[str]:
+        """Workspace-scoped reference retrieval. Note bodies never become instructions."""
+        async with httpx.AsyncClient(timeout=8) as client:
+            response = await client.get(
+                f"{self.base_url}/rest/v1/project_notes",
+                headers={**self.headers, "Accept": "application/json"},
+                params={"workspace_id": f"eq.{workspace_id}", "select": "title,body,updated_at,projects(name)", "order": "updated_at.desc", "limit": str(limit)},
+            )
+        response.raise_for_status()
+        result: list[str] = []
+        for row in response.json():
+            body = row.get("body") or {}
+            text = body.get("text") if isinstance(body, dict) else str(body)
+            if not text:
+                continue
+            project = row.get("projects") or {}
+            project_name = project.get("name", "Project") if isinstance(project, dict) else "Project"
+            title = row.get("title") or "Untitled note"
+            result.append(f"{project_name} — {title}: {text}")
+        return result
+
     async def append(self, conversation_id: str, user_id: str, role: str, content: str, model: str | None = None) -> None:
         async with httpx.AsyncClient(timeout=10) as client:
             latest = await client.get(f"{self.base_url}/rest/v1/messages", headers={**self.headers, "Accept": "application/json"}, params={"conversation_id": f"eq.{conversation_id}", "select": "sequence_number", "order": "sequence_number.desc", "limit": "1"})

@@ -1,12 +1,19 @@
 import os from "node:os";
 
 import { DesktopOsActions } from "./os-actions";
+import { OllamaLocalProvider, type LocalChatMessage } from "./ai/ollama-local-provider";
 import type { DesktopAgentStatus, DesktopNotification } from "../shared/ipc";
 
 type AgentCommand = {
   id: string;
   action_type: "open_file" | "open_folder" | "open_application" | "notify";
   input_payload: { path?: string; notification?: DesktopNotification };
+};
+
+type ModelJob = {
+  id: string;
+  model_name: string;
+  messages: LocalChatMessage[];
 };
 
 const POLL_INTERVAL_MS = 2_500;
@@ -17,6 +24,8 @@ export class AgentDesktopBridge {
   private lastError: string | undefined;
   private lastSeenAt: string | undefined;
   private busy = false;
+
+  private readonly ollama = new OllamaLocalProvider();
 
   constructor(private readonly osActions: DesktopOsActions) {}
 
@@ -55,6 +64,7 @@ export class AgentDesktopBridge {
       const command = await response.json() as AgentCommand | null;
       this.lastSeenAt = new Date().toISOString(); this.lastError = undefined;
       if (command) await this.execute(command);
+      await this.processModelJob();
     } catch (error) {
       this.lastError = error instanceof Error ? error.message : "Desktop agent bridge is unavailable.";
     } finally { this.busy = false; }
@@ -79,5 +89,50 @@ export class AgentDesktopBridge {
       }
     } catch (error) { result = { ok: false, reason: error instanceof Error ? error.message : "desktop_execution_failed" }; }
     await fetch(this.endpoint(`/v1/desktop/commands/${command.id}/complete`), { method: "POST", headers: this.headers(), body: JSON.stringify(result) });
+  }
+
+  private async processModelJob() {
+    const response = await fetch(this.endpoint("/v1/desktop/model-jobs/next"), { headers: this.headers() });
+    if (!response.ok) throw new Error(`Agent model poll failed (${response.status}).`);
+    const job = await response.json() as ModelJob | null;
+    if (!job) return;
+
+    let pending = "";
+    const flush = async () => {
+      if (!pending) return;
+      const delta = pending;
+      pending = "";
+      const uploaded = await fetch(this.endpoint(`/v1/desktop/model-jobs/${job.id}/delta`), { method: "POST", headers: this.headers(), body: JSON.stringify({ text: delta }) });
+      if (!uploaded.ok) throw new Error(`Agent model delta upload failed (${uploaded.status}).`);
+    };
+
+    try {
+      for await (const event of this.ollama.stream({ model: job.model_name, messages: job.messages })) {
+        if (event.type === "delta") {
+          pending += event.text;
+          if (pending.length >= 160) await flush();
+        }
+        if (event.type === "error") {
+          await flush();
+          await this.completeModelJob(job.id, false, event.code);
+          return;
+        }
+        if (event.type === "done") {
+          await flush();
+          await this.completeModelJob(job.id, true);
+          return;
+        }
+      }
+      await flush();
+      await this.completeModelJob(job.id, false, "ollama_stream_ended_without_completion");
+    } catch {
+      await this.completeModelJob(job.id, false, "desktop_model_relay_failed").catch(() => undefined);
+      throw new Error("Desktop model relay failed.");
+    }
+  }
+
+  private async completeModelJob(jobId: string, ok: boolean, error_code?: string) {
+    const response = await fetch(this.endpoint(`/v1/desktop/model-jobs/${jobId}/complete`), { method: "POST", headers: this.headers(), body: JSON.stringify({ ok, error_code }) });
+    if (!response.ok) throw new Error(`Agent model completion failed (${response.status}).`);
   }
 }
