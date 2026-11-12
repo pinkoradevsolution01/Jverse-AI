@@ -4,6 +4,7 @@ import asyncio
 import os
 import tempfile
 import sys
+import shutil
 from pathlib import Path
 
 from app.core.config import Settings
@@ -61,8 +62,8 @@ class VoiceService:
         return True, command or None
 
     async def synthesize(self, text: str) -> bytes:
-        default_executable = Path(sys.executable).parent / "Scripts" / "piper.exe"
-        executable = self.settings.piper_executable or str(default_executable)
+        windows_executable = Path(sys.executable).parent / "Scripts" / "piper.exe"
+        executable = self.settings.piper_executable or shutil.which("piper") or str(windows_executable)
         bundled_model = Path(__file__).resolve().parents[2] / "models" / "en_US-lessac-medium.onnx"
         model = self.settings.piper_model_path or (str(bundled_model) if bundled_model.is_file() else None)
         if not model:
