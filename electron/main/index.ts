@@ -4,17 +4,20 @@ import path from "node:path";
 import { registerDesktopIpc } from "./ipc";
 import { AgentDesktopBridge } from "./agent-bridge";
 import { DesktopOsActions } from "./os-actions";
+import { DesktopRuntimeManager } from "./runtime-manager";
 import { isAllowedNavigation, isTrustedRenderer } from "./security";
 import { DesktopUpdater } from "./updater";
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let desktopBridge: AgentDesktopBridge | null = null;
+let runtimeManager: DesktopRuntimeManager | null = null;
 
 function rendererUrl() {
   if (!app.isPackaged) return process.env.ELECTRON_RENDERER_URL ?? "http://localhost:3000";
-  if (!process.env.JVERSE_WEB_URL?.startsWith("https://")) throw new Error("JVERSE_WEB_URL must be a trusted HTTPS URL in packaged builds.");
-  return process.env.JVERSE_WEB_URL;
+  const target = process.env.JVERSE_WEB_URL ?? "https://jverseai.space";
+  if (!target.startsWith("https://")) throw new Error("JVERSE_WEB_URL must be a trusted HTTPS URL in packaged builds.");
+  return target;
 }
 
 function trayIcon() {
@@ -68,7 +71,12 @@ app.whenReady().then(() => {
   const updater = new DesktopUpdater(window);
   updater.initialise();
   desktopBridge = new AgentDesktopBridge(new DesktopOsActions());
-  registerDesktopIpc(updater, desktopBridge);
+  runtimeManager = new DesktopRuntimeManager();
+  runtimeManager.onProgress((message) => {
+    const target = mainWindow;
+    if (target && !target.isDestroyed()) target.webContents.send("desktop:runtime:progress", message);
+  });
+  registerDesktopIpc(updater, desktopBridge, runtimeManager);
   desktopBridge.start();
   createTray();
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });

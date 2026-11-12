@@ -7,6 +7,15 @@ export type DesktopAgentStatus = {
   lastSeenAt?: string;
 };
 
+export type DesktopRuntimeComponent = {
+  id: "ollama" | "qwen" | "python" | "voice";
+  label: string;
+  status: "ready" | "missing" | "setup_required";
+  detail: string;
+};
+
+export type DesktopRuntimeStatus = { components: DesktopRuntimeComponent[] };
+
 export type DesktopNotification = {
   title: string;
   body: string;
@@ -26,6 +35,12 @@ export type DesktopApi = {
   pickFolder(): Promise<PathSelection>;
   pickApplication(): Promise<PathSelection>;
   agentStatus(): Promise<DesktopAgentStatus>;
+  runtime: {
+    status(): Promise<DesktopRuntimeStatus>;
+    openInstaller(component: "ollama" | "python"): Promise<void>;
+    installQwen(): Promise<void>;
+    onProgress(listener: (message: string) => void): () => void;
+  };
   updates: {
     check(): Promise<void>;
     download(): Promise<void>;

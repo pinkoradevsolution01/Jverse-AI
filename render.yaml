@@ -2,6 +2,7 @@ services:
   - type: web
     name: jverse-brain
     runtime: docker
+    plan: free
     dockerfilePath: ./services/brain/Dockerfile
     healthCheckPath: /health
     autoDeploy: true

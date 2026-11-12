@@ -9,7 +9,7 @@ function origin(url: string) {
 }
 
 export function rendererOrigins() {
-  const production = process.env.JVERSE_WEB_URL ? origin(process.env.JVERSE_WEB_URL) : "";
+  const production = origin(process.env.JVERSE_WEB_URL ?? "https://jverseai.space");
   const development = process.env.ELECTRON_RENDERER_URL ? origin(process.env.ELECTRON_RENDERER_URL) : "http://localhost:3000";
   return new Set([production, ...(app.isPackaged ? [] : [development])].filter(Boolean));
 }

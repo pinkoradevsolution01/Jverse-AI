@@ -4,6 +4,12 @@ export type DesktopBridge = {
   pickFolder(): Promise<{ ok: boolean; path?: string }>;
   pickApplication(): Promise<{ ok: boolean; path?: string }>;
   agentStatus(): Promise<{ connected: boolean; deviceId?: string; lastError?: string }>;
+  runtime: {
+    status(): Promise<{ components: Array<{ id: "ollama" | "qwen" | "python" | "voice"; label: string; status: "ready" | "missing" | "setup_required"; detail: string }> }>;
+    openInstaller(component: "ollama" | "python"): Promise<void>;
+    installQwen(): Promise<void>;
+    onProgress(listener: (message: string) => void): () => void;
+  };
 };
 
 declare global {
