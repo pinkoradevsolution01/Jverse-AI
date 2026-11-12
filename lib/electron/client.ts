@@ -10,6 +10,16 @@ export type DesktopBridge = {
     installQwen(): Promise<void>;
     onProgress(listener: (message: string) => void): () => void;
   };
+  localAgent: {
+    status(): Promise<{ status: "ready" | "stopped" | "setup_required"; detail: string }>;
+    prepare(): Promise<void>;
+    start(): Promise<void>;
+    chat(requestId: string, message: string): Promise<void>;
+    transcribe(audio: Uint8Array): Promise<{ transcript: string; wake_word_detected: boolean; command?: string }>;
+    speak(text: string): Promise<Uint8Array>;
+    onProgress(listener: (message: string) => void): () => void;
+    onEvent(listener: (value: { requestId: string; event: unknown }) => void): () => void;
+  };
 };
 
 declare global {

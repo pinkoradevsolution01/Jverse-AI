@@ -149,12 +149,17 @@ export function VoiceControl({ onTranscript, speakText, isThinking = false }: { 
   async function transcribe(recording: Blob) {
     setState("processing");
     setNotice("Transcribing locally with Whisper…");
-    const body = new FormData();
-    body.append("audio", recording, "jverse-voice.webm");
     try {
-      const response = await fetch("/api/voice/transcribe", { method: "POST", body });
-      const result = await response.json().catch(() => null) as { transcript?: string; wake_word_detected?: boolean; command?: string; detail?: string; error?: { message?: string } } | null;
-      if (!response.ok) throw new Error(result?.detail ?? result?.error?.message ?? "Voice transcription could not start.");
+      const result = window.jverseDesktop?.localAgent
+        ? await window.jverseDesktop.localAgent.transcribe(new Uint8Array(await recording.arrayBuffer()))
+        : await (async () => {
+          const body = new FormData();
+          body.append("audio", recording, "jverse-voice.webm");
+          const response = await fetch("/api/voice/transcribe", { method: "POST", body });
+          const responseBody = await response.json().catch(() => null) as { transcript?: string; wake_word_detected?: boolean; command?: string; detail?: string; error?: { message?: string } } | null;
+          if (!response.ok) throw new Error(responseBody?.detail ?? responseBody?.error?.message ?? "Voice transcription could not start.");
+          return responseBody;
+        })();
       const transcript = result?.transcript?.trim() ?? "";
       const command = result?.command?.trim();
       if (wakeWordOnly && !result?.wake_word_detected) {
@@ -206,12 +211,22 @@ export function VoiceControl({ onTranscript, speakText, isThinking = false }: { 
     if (!speakText?.trim()) { setNotice("There is no assistant response available to read."); return; }
     setState("speaking"); setNotice("Speaking with Piper…");
     try {
-      const response = await fetch("/api/voice/speak", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: speakText }) });
-      if (!response.ok) {
-        const result = await response.json().catch(() => null) as { detail?: string; error?: { message?: string } } | null;
-        throw new Error(result?.detail ?? result?.error?.message ?? "Piper speech could not start.");
-      }
-      const url = URL.createObjectURL(await response.blob());
+      const localAudio = window.jverseDesktop?.localAgent ? await window.jverseDesktop.localAgent.speak(speakText) : null;
+      const audioBlob = localAudio
+        ? (() => {
+          const copy = new Uint8Array(localAudio.byteLength);
+          copy.set(localAudio);
+          return new Blob([copy.buffer], { type: "audio/wav" });
+        })()
+        : await (async () => {
+          const response = await fetch("/api/voice/speak", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: speakText }) });
+          if (!response.ok) {
+            const result = await response.json().catch(() => null) as { detail?: string; error?: { message?: string } } | null;
+            throw new Error(result?.detail ?? result?.error?.message ?? "Piper speech could not start.");
+          }
+          return response.blob();
+        })();
+      const url = URL.createObjectURL(audioBlob);
       audio.current?.pause();
       const player = new Audio(url);
       audio.current = player;

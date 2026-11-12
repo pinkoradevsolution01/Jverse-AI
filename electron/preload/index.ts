@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-import type { DesktopApi, DesktopUpdateEvent, PathSelection } from "../shared/ipc";
+import type { DesktopApi, DesktopLocalAgentEvent, DesktopUpdateEvent, PathSelection } from "../shared/ipc";
 
 const desktopApi: DesktopApi = {
   pickFile: () => ipcRenderer.invoke("desktop:pick-file") as Promise<PathSelection>,
@@ -14,6 +14,26 @@ const desktopApi: DesktopApi = {
     onProgress: (listener) => {
       const channel = "desktop:runtime:progress";
       const wrapped = (_event: Electron.IpcRendererEvent, message: string) => listener(message);
+      ipcRenderer.on(channel, wrapped);
+      return () => ipcRenderer.removeListener(channel, wrapped);
+    },
+  },
+  localAgent: {
+    status: () => ipcRenderer.invoke("desktop:local-agent:status"),
+    prepare: () => ipcRenderer.invoke("desktop:local-agent:prepare") as Promise<void>,
+    start: () => ipcRenderer.invoke("desktop:local-agent:start") as Promise<void>,
+    chat: (requestId, message) => ipcRenderer.invoke("desktop:local-agent:chat", requestId, message) as Promise<void>,
+    transcribe: (audio) => ipcRenderer.invoke("desktop:local-agent:transcribe", audio),
+    speak: (text) => ipcRenderer.invoke("desktop:local-agent:speak", text) as Promise<Uint8Array>,
+    onProgress: (listener) => {
+      const channel = "desktop:local-agent:progress";
+      const wrapped = (_event: Electron.IpcRendererEvent, message: string) => listener(message);
+      ipcRenderer.on(channel, wrapped);
+      return () => ipcRenderer.removeListener(channel, wrapped);
+    },
+    onEvent: (listener) => {
+      const channel = "desktop:local-agent:event";
+      const wrapped = (_event: Electron.IpcRendererEvent, value: DesktopLocalAgentEvent) => listener(value);
       ipcRenderer.on(channel, wrapped);
       return () => ipcRenderer.removeListener(channel, wrapped);
     },

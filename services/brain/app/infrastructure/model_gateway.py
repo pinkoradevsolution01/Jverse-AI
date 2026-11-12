@@ -14,7 +14,7 @@ class ModelGateway:
 class CompatibilityOllamaGateway(ModelGateway):
     """Temporary local-only migration adapter; production uses paired Electron."""
 
-    def __init__(self, settings: Settings, desktop_repository: DesktopActionRepository) -> None:
+    def __init__(self, settings: Settings, desktop_repository: DesktopActionRepository | None = None) -> None:
         self.settings = settings
         self.desktop_repository = desktop_repository
 
@@ -22,6 +22,8 @@ class CompatibilityOllamaGateway(ModelGateway):
         if model != self.settings.allowed_model:
             raise RuntimeError("model_not_allowed")
         if not self.settings.compat_local_ollama:
+            if not self.desktop_repository:
+                raise RuntimeError("paired_desktop_provider_unavailable")
             job = await self.desktop_repository.create_model_job(workspace_id, user_id, messages, model)
             async for text in self.desktop_repository.stream_model_job(job["id"]):
                 yield text

@@ -62,8 +62,8 @@ class VoiceService:
         return True, command or None
 
     async def synthesize(self, text: str) -> bytes:
-        windows_executable = Path(sys.executable).parent / "Scripts" / "piper.exe"
-        executable = self.settings.piper_executable or shutil.which("piper") or str(windows_executable)
+        piper_executable = Path(sys.executable).parent / ("piper.exe" if sys.platform == "win32" else "piper")
+        executable = self.settings.piper_executable or shutil.which("piper") or str(piper_executable)
         bundled_model = Path(__file__).resolve().parents[2] / "models" / "en_US-lessac-medium.onnx"
         model = self.settings.piper_model_path or (str(bundled_model) if bundled_model.is_file() else None)
         if not model:

@@ -42,7 +42,7 @@ export class DesktopRuntimeManager {
     return candidates.find((candidate) => candidate === "ollama" || executableExists(candidate)) ?? "ollama";
   }
 
-  private pythonPath() {
+  pythonExecutable() {
     const local = process.env.LOCALAPPDATA;
     const candidates = [process.env.JVERSE_PYTHON_EXECUTABLE, local && path.join(local, "Programs", "Python", "Python312", "python.exe"), "python"];
     return candidates.find((candidate) => candidate === "python" || executableExists(candidate)) ?? "python";
@@ -50,9 +50,9 @@ export class DesktopRuntimeManager {
 
   async status(): Promise<DesktopRuntimeStatus> {
     const ollama = await execute(this.ollamaPath(), ["--version"]);
-    const python = await execute(this.pythonPath(), ["--version"]);
+    const python = await execute(this.pythonExecutable(), ["--version"]);
     const model = ollama.ok ? await execute(this.ollamaPath(), ["list"], 15_000) : { ok: false, output: "" };
-    const voice = python.ok ? await execute(this.pythonPath(), ["-c", "import faster_whisper, piper; print('ready')"]) : { ok: false, output: "" };
+    const voice = python.ok ? await execute(this.pythonExecutable(), ["-c", "import faster_whisper, piper; print('ready')"]) : { ok: false, output: "" };
     const components: DesktopRuntimeComponent[] = [
       { id: "ollama", label: "Ollama", status: ollama.ok ? "ready" : "missing", detail: ollama.ok ? ollama.output.trim() : "Install the local model runtime." },
       { id: "qwen", label: "Qwen 2.5", status: model.ok && model.output.includes(QWEN_MODEL) ? "ready" : "missing", detail: model.ok && model.output.includes(QWEN_MODEL) ? "Local model available." : "Download required model." },

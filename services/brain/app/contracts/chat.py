@@ -10,6 +10,11 @@ class ChatStreamRequest(BaseModel):
     model: str = "qwen2.5:7b"
 
 
+class LocalChatStreamRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=24_000)
+    model: str = "qwen2.5:7b"
+
+
 class StreamEvent(BaseModel):
     version: Literal["v1"] = "v1"
     type: Literal["metadata", "status", "delta", "approval", "tool", "error", "done"]

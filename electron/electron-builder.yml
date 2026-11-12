@@ -6,6 +6,12 @@ files:
   - dist/**
   - package.json
 asar: true
+extraResources:
+  - from: ../services/brain
+    to: brain
+    filter:
+      - app/**
+      - pyproject.toml
 electronUpdaterCompatibility: ">= 2.16"
 win:
   target:

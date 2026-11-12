@@ -5,6 +5,7 @@ import { registerDesktopIpc } from "./ipc";
 import { AgentDesktopBridge } from "./agent-bridge";
 import { DesktopOsActions } from "./os-actions";
 import { DesktopRuntimeManager } from "./runtime-manager";
+import { LocalAgentManager } from "./local-agent-manager";
 import { isAllowedNavigation, isTrustedRenderer } from "./security";
 import { DesktopUpdater } from "./updater";
 
@@ -12,6 +13,7 @@ let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let desktopBridge: AgentDesktopBridge | null = null;
 let runtimeManager: DesktopRuntimeManager | null = null;
+let localAgent: LocalAgentManager | null = null;
 
 function rendererUrl() {
   if (!app.isPackaged) return process.env.ELECTRON_RENDERER_URL ?? "http://localhost:3000";
@@ -76,7 +78,12 @@ app.whenReady().then(() => {
     const target = mainWindow;
     if (target && !target.isDestroyed()) target.webContents.send("desktop:runtime:progress", message);
   });
-  registerDesktopIpc(updater, desktopBridge, runtimeManager);
+  localAgent = new LocalAgentManager(runtimeManager);
+  localAgent.onProgress((message) => {
+    const target = mainWindow;
+    if (target && !target.isDestroyed()) target.webContents.send("desktop:local-agent:progress", message);
+  });
+  registerDesktopIpc(updater, desktopBridge, runtimeManager, localAgent);
   desktopBridge.start();
   createTray();
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
@@ -86,4 +93,4 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on("before-quit", () => desktopBridge?.stop());
+app.on("before-quit", () => { desktopBridge?.stop(); localAgent?.stop(); });

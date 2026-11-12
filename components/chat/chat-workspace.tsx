@@ -65,6 +65,7 @@ export function ChatWorkspace() {
   const [status, setStatus] = useState<"ready" | "loading" | "streaming" | "error">("loading");
   const [notice, setNotice] = useState("Loading your personal workspace…");
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
+  const [isLocalDesktop, setIsLocalDesktop] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -76,6 +77,18 @@ export function ChatWorkspace() {
 
   useEffect(() => {
     let active = true;
+
+    // In Electron, model traffic stays on this computer through the trusted preload bridge.
+    if (window.jverseDesktop?.localAgent) {
+      setIsLocalDesktop(true);
+      setWorkspaceId("local");
+      setConversationId("local");
+      setMessages([]);
+      setStatus("ready");
+      setNotice("Local desktop mode: Qwen and active conversation context stay on this computer.");
+      return () => { active = false; };
+    }
+    setIsLocalDesktop(false);
 
     if (!supabase) {
       setStatus("error");
@@ -156,6 +169,38 @@ export function ChatWorkspace() {
     const controller = new AbortController();
     abortRef.current = controller;
     try {
+      const handleEvent = (streamEvent: ChatStreamEvent) => {
+        if (streamEvent.type === "metadata") setConversationId(streamEvent.conversationId);
+        if (streamEvent.type === "delta") {
+          setMessages((current) => current.map((item) => item.id === assistantId
+            ? { ...item, content: item.content + streamEvent.text, pending: false }
+            : item));
+        }
+        if (streamEvent.type === "tool") setNotice(streamEvent.result);
+        if (streamEvent.type === "approval" && streamEvent.actionId) {
+          setApprovals((current) => [...current, { actionId: streamEvent.actionId, targetSummary: streamEvent.targetSummary, expiresAt: streamEvent.expiresAt, state: "pending" }]);
+        }
+        if (streamEvent.type === "error") throw new Error(streamEvent.message);
+      };
+
+      if (window.jverseDesktop?.localAgent) {
+        const requestId = crypto.randomUUID();
+        let streamError: Error | null = null;
+        const unsubscribe = window.jverseDesktop.localAgent.onEvent(({ requestId: receivedId, event: rawEvent }) => {
+          if (receivedId !== requestId || streamError) return;
+          const streamEvent = parseSseEvent(`data: ${JSON.stringify(rawEvent)}`);
+          if (!streamEvent) return;
+          try { handleEvent(streamEvent); } catch (error) { streamError = error instanceof Error ? error : new Error("The local Agent could not complete the response."); }
+        });
+        try {
+          await window.jverseDesktop.localAgent.chat(requestId, message);
+          if (streamError) throw streamError;
+        } finally {
+          unsubscribe();
+        }
+        return;
+      }
+
       const response = await fetch("/api/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
@@ -180,17 +225,7 @@ export function ChatWorkspace() {
         for (const block of parsed.complete) {
           const streamEvent = parseSseEvent(block);
           if (!streamEvent) continue;
-          if (streamEvent.type === "metadata") setConversationId(streamEvent.conversationId);
-          if (streamEvent.type === "delta") {
-            setMessages((current) => current.map((item) => item.id === assistantId
-              ? { ...item, content: item.content + streamEvent.text, pending: false }
-              : item));
-          }
-          if (streamEvent.type === "error") throw new Error(streamEvent.message);
-          if (streamEvent.type === "tool") setNotice(streamEvent.result);
-          if (streamEvent.type === "approval" && streamEvent.actionId) {
-            setApprovals((current) => [...current, { actionId: streamEvent.actionId, targetSummary: streamEvent.targetSummary, expiresAt: streamEvent.expiresAt, state: "pending" }]);
-          }
+          handleEvent(streamEvent);
         }
       }
     } catch (error) {
@@ -241,7 +276,7 @@ export function ChatWorkspace() {
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-cyan-300/25 bg-cyan-300/10 text-cyan-200"><Sparkles size={18} /></span>
           <div className="min-w-0">
             <h1 className="truncate text-sm font-semibold text-slate-100">JVerse AI Chat</h1>
-            <p className="text-xs text-slate-400">Qwen 2.5 · scoped memory · streaming</p>
+            <p className="text-xs text-slate-400">Qwen 2.5 · {isLocalDesktop ? "private desktop context" : "scoped memory"} · streaming</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -294,7 +329,7 @@ export function ChatWorkspace() {
               <button type="submit" disabled={!draft.trim() || status !== "ready"} className="grid h-10 w-10 place-items-center rounded-xl bg-cyan-300 text-[#03101c] transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-40"><ArrowUp size={18} /></button>
             )}
           </div>
-          <p className="mt-2 px-2 text-[11px] text-slate-500">Enter to send · Shift+Enter for a new line · Responses are streamed through the protected JVerse control plane.</p>
+          <p className="mt-2 px-2 text-[11px] text-slate-500">Enter to send · Shift+Enter for a new line · {isLocalDesktop ? "Responses stream from your local JVerse Agent." : "Responses are streamed through the protected JVerse control plane."}</p>
         </form>
       </div>
     </section>

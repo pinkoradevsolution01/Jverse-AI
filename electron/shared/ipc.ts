@@ -16,6 +16,16 @@ export type DesktopRuntimeComponent = {
 
 export type DesktopRuntimeStatus = { components: DesktopRuntimeComponent[] };
 
+export type DesktopLocalAgentStatus = {
+  status: "ready" | "stopped" | "setup_required";
+  detail: string;
+};
+
+export type DesktopLocalAgentEvent = {
+  requestId: string;
+  event: unknown;
+};
+
 export type DesktopNotification = {
   title: string;
   body: string;
@@ -40,6 +50,17 @@ export type DesktopApi = {
     openInstaller(component: "ollama" | "python"): Promise<void>;
     installQwen(): Promise<void>;
     onProgress(listener: (message: string) => void): () => void;
+  };
+  localAgent: {
+    status(): Promise<DesktopLocalAgentStatus>;
+    /** Downloads Python packages/models only after an explicit first-run click. */
+    prepare(): Promise<void>;
+    start(): Promise<void>;
+    chat(requestId: string, message: string): Promise<void>;
+    transcribe(audio: Uint8Array): Promise<{ transcript: string; wake_word_detected: boolean; command?: string }>;
+    speak(text: string): Promise<Uint8Array>;
+    onProgress(listener: (message: string) => void): () => void;
+    onEvent(listener: (event: DesktopLocalAgentEvent) => void): () => void;
   };
   updates: {
     check(): Promise<void>;

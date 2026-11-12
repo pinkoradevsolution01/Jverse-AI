@@ -1,10 +1,11 @@
 import json
+import secrets
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, UploadFile
 from fastapi.responses import Response, StreamingResponse
 
-from app.contracts.chat import ChatStreamRequest
+from app.contracts.chat import ChatStreamRequest, LocalChatStreamRequest
 from app.contracts.desktop import DesktopActionRequest, DesktopCompletion, DesktopHeartbeat, DesktopModelCompletion, DesktopModelDelta, DesktopPairRequest, DesktopPairResponse
 from app.contracts.voice import VoiceSynthesisRequest, VoiceTranscription
 from app.core.config import Settings, get_settings
@@ -14,9 +15,11 @@ from app.infrastructure.supabase_chat_repository import SupabaseChatRepository
 from app.infrastructure.supabase_identity import verify_supabase_access_token
 from app.services.chat_service import ChatService
 from app.services.desktop_service import DesktopService
+from app.services.local_chat_service import LocalChatService
 from app.services.voice_service import VoiceService, VoiceUnavailableError
 
 router = APIRouter(prefix="/v1")
+local_chat_service: LocalChatService | None = None
 
 
 async def principal(authorization: str = Header(default=""), settings: Settings = Depends(get_settings)) -> str:
@@ -38,6 +41,17 @@ async def desktop_principal(
         raise HTTPException(status_code=401, detail=str(error)) from error
 
 
+async def local_principal(
+    request: Request,
+    local_token: str = Header(default="", alias="X-JVerse-Local-Token"),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    host = request.client.host if request.client else ""
+    expected = settings.local_agent_token.get_secret_value() if settings.local_agent_token else ""
+    if not settings.local_mode or host not in {"127.0.0.1", "::1"} or not expected or not secrets.compare_digest(local_token, expected):
+        raise HTTPException(status_code=403, detail="local_agent_access_denied")
+
+
 @router.post("/chat/stream")
 async def chat_stream(request: ChatStreamRequest, user_id: str = Depends(principal), settings: Settings = Depends(get_settings)):
     desktop_repository = DesktopActionRepository(settings)
@@ -52,6 +66,17 @@ async def chat_stream(request: ChatStreamRequest, user_id: str = Depends(princip
             yield 'event: error\ndata: {"version":"v1","type":"error","payload":{"code":"not_found","message":"This conversation is unavailable."}}\n\n'
         except Exception:
             yield 'event: error\ndata: {"version":"v1","type":"error","payload":{"code":"unavailable","message":"The JVerse brain could not prepare this response."}}\n\n'
+    return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"})
+
+
+@router.post("/local/chat/stream")
+async def local_chat_stream(request: LocalChatStreamRequest, _local: None = Depends(local_principal), settings: Settings = Depends(get_settings)):
+    global local_chat_service
+    if local_chat_service is None:
+        local_chat_service = LocalChatService(CompatibilityOllamaGateway(settings))
+    async def events():
+        async for event in local_chat_service.stream(request):
+            yield f"event: {event.type}\ndata: {json.dumps(event.model_dump())}\n\n"
     return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"})
 
 
@@ -133,6 +158,27 @@ async def transcribe_voice(audio: UploadFile = File(...), _user_id: str = Depend
 
 @router.post("/voice/speak")
 async def synthesize_voice(request: VoiceSynthesisRequest, _user_id: str = Depends(principal), settings: Settings = Depends(get_settings)):
+    try:
+        audio = await VoiceService(settings).synthesize(request.text)
+    except VoiceUnavailableError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    return Response(content=audio, media_type="audio/wav", headers={"Cache-Control": "no-store"})
+
+
+@router.post("/local/voice/transcribe", response_model=VoiceTranscription)
+async def local_transcribe_voice(audio: UploadFile = File(...), _local: None = Depends(local_principal), settings: Settings = Depends(get_settings)):
+    try:
+        transcript = await VoiceService(settings).transcribe(await audio.read(), Path(audio.filename or "voice.webm").suffix)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except VoiceUnavailableError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    wake_word_detected, command = VoiceService.wake_word(transcript)
+    return VoiceTranscription(transcript=transcript, wake_word_detected=wake_word_detected, command=command)
+
+
+@router.post("/local/voice/speak")
+async def local_synthesize_voice(request: VoiceSynthesisRequest, _local: None = Depends(local_principal), settings: Settings = Depends(get_settings)):
     try:
         audio = await VoiceService(settings).synthesize(request.text)
     except VoiceUnavailableError as error:
