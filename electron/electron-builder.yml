@@ -1,5 +1,9 @@
 appId: ai.jverse.desktop
 productName: JVerse AI
+protocols:
+  - name: JVerse Secure Sign In
+    schemes:
+      - jverse
 directories:
   output: release
 files:

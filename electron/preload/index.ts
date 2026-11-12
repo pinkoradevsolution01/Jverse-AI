@@ -38,6 +38,9 @@ const desktopApi: DesktopApi = {
       return () => ipcRenderer.removeListener(channel, wrapped);
     },
   },
+  auth: {
+    openGoogleOAuth: (url) => ipcRenderer.invoke("desktop:auth:open-google-oauth", url) as Promise<void>,
+  },
   updates: {
     check: () => ipcRenderer.invoke("desktop:updates:check") as Promise<void>,
     download: () => ipcRenderer.invoke("desktop:updates:download") as Promise<void>,

@@ -62,6 +62,10 @@ export type DesktopApi = {
     onProgress(listener: (message: string) => void): () => void;
     onEvent(listener: (event: DesktopLocalAgentEvent) => void): () => void;
   };
+  auth: {
+    /** Opens only a validated Supabase Google OAuth URL in the system browser. */
+    openGoogleOAuth(url: string): Promise<void>;
+  };
   updates: {
     check(): Promise<void>;
     download(): Promise<void>;

@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from "electron";
+import { BrowserWindow, ipcMain, shell } from "electron";
 
 import { DesktopOsActions } from "./os-actions";
 import { AgentDesktopBridge } from "./agent-bridge";
@@ -7,6 +7,20 @@ import { LocalAgentManager } from "./local-agent-manager";
 import { assertTrustedRenderer } from "./security";
 import { DesktopUpdater } from "./updater";
 import type { DesktopNotification } from "../shared/ipc";
+
+const SUPABASE_AUTH_HOST = process.env.JVERSE_SUPABASE_AUTH_HOST ?? "cczyzhhreegioovlokyx.supabase.co";
+
+function validGoogleOAuthUrl(value: unknown): value is string {
+  if (typeof value !== "string" || value.length > 8_192) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:"
+      && url.hostname === SUPABASE_AUTH_HOST
+      && url.pathname === "/auth/v1/authorize"
+      && url.searchParams.get("provider") === "google"
+      && url.searchParams.get("redirect_to") === "jverse://auth/callback";
+  } catch { return false; }
+}
 
 function parentWindow(event: Electron.IpcMainInvokeEvent) {
   const window = BrowserWindow.fromWebContents(event.sender);
@@ -70,6 +84,11 @@ export function registerDesktopIpc(updater: DesktopUpdater, bridge: AgentDesktop
     assertTrustedRenderer(event);
     if (typeof text !== "string" || !text.trim() || text.length > 12_000) throw new Error("Invalid speech text.");
     return localAgent.speak(text);
+  });
+  ipcMain.handle("desktop:auth:open-google-oauth", async (event, url: unknown) => {
+    assertTrustedRenderer(event);
+    if (!validGoogleOAuthUrl(url)) throw new Error("The requested Google sign-in URL is not trusted.");
+    await shell.openExternal(url);
   });
   ipcMain.handle("desktop:updates:check", async (event) => {
     assertTrustedRenderer(event);

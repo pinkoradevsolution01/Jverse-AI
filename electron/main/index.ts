@@ -14,6 +14,34 @@ let tray: Tray | null = null;
 let desktopBridge: AgentDesktopBridge | null = null;
 let runtimeManager: DesktopRuntimeManager | null = null;
 let localAgent: LocalAgentManager | null = null;
+let pendingAuthCallback: string | null = null;
+
+function desktopAuthDestination(callbackUrl: string) {
+  try {
+    const callback = new URL(callbackUrl);
+    if (callback.protocol !== "jverse:" || callback.hostname !== "auth" || callback.pathname !== "/callback") return null;
+    const target = new URL(rendererUrl());
+    target.pathname = "/auth/desktop-callback";
+    target.search = callback.search;
+    return target.toString();
+  } catch { return null; }
+}
+
+function handleDesktopAuthCallback(callbackUrl: string) {
+  const destination = desktopAuthDestination(callbackUrl);
+  if (!destination) return;
+  if (!mainWindow) { pendingAuthCallback = destination; return; }
+  void mainWindow.loadURL(destination);
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function protocolArgument(values: string[]) {
+  return values.find((value) => value.startsWith("jverse://"));
+}
+
+const singleInstance = app.requestSingleInstanceLock();
+if (!singleInstance) app.quit();
 
 function rendererUrl() {
   if (!app.isPackaged) return process.env.ELECTRON_RENDERER_URL ?? "http://localhost:3000";
@@ -62,6 +90,7 @@ function createTray() {
 }
 
 app.whenReady().then(() => {
+  app.setAsDefaultProtocolClient("jverse");
   app.setAppUserModelId("ai.jverse.desktop");
   session.defaultSession.setPermissionCheckHandler((webContents, permission) => (
     permission === "media" && isTrustedRenderer(webContents?.getURL() ?? "")
@@ -70,6 +99,8 @@ app.whenReady().then(() => {
     callback(permission === "media" && isTrustedRenderer(webContents?.getURL() ?? ""));
   });
   const window = createWindow();
+  const launchCallback = protocolArgument(process.argv);
+  if (launchCallback) handleDesktopAuthCallback(launchCallback);
   const updater = new DesktopUpdater(window);
   updater.initialise();
   desktopBridge = new AgentDesktopBridge(new DesktopOsActions());
@@ -87,6 +118,12 @@ app.whenReady().then(() => {
   desktopBridge.start();
   createTray();
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+});
+
+app.on("second-instance", (_event, commandLine) => {
+  const callback = protocolArgument(commandLine);
+  if (callback) handleDesktopAuthCallback(callback);
+  else { mainWindow?.show(); mainWindow?.focus(); }
 });
 
 app.on("window-all-closed", () => {

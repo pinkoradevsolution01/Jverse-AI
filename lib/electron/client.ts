@@ -20,6 +20,9 @@ export type DesktopBridge = {
     onProgress(listener: (message: string) => void): () => void;
     onEvent(listener: (value: { requestId: string; event: unknown }) => void): () => void;
   };
+  auth: {
+    openGoogleOAuth(url: string): Promise<void>;
+  };
 };
 
 declare global {
