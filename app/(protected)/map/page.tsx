@@ -1,3 +1,3 @@
-import { JVerseMapWorkspace } from "../../../components/map/jverse-map-workspace";
+import { CinematicMapWorkspace as JVerseMapWorkspace } from "../../../components/map/cinematic-map-workspace";
 
 export default function Page() { return <JVerseMapWorkspace />; }

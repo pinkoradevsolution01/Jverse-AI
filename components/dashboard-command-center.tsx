@@ -14,7 +14,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { VoiceControl } from "./voice/voice-control";
 import type { VoiceState } from "./voice/voice-orb";
 import { BrandLogo } from "./brand-logo";
-import { JVerseMapWorkspace } from "./map/jverse-map-workspace";
+import { CinematicMapWorkspace } from "./map/cinematic-map-workspace";
 
 type Module = {
   title: string;
@@ -193,7 +193,7 @@ export function DashboardCommandCenter() {
       </motion.section>
     </motion.div> : null}</AnimatePresence>
     <AnimatePresence>{mapOverlay ? <motion.section className="jv-ai-map-overlay" aria-label="JVerse AI Map" initial={{ opacity: 0, scale: 1.04 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: .98 }} transition={{ duration: .42, ease: "easeOut" }}>
-      <JVerseMapWorkspace immersive initialPlace={mapOverlay.place} controlsVisible={mapControlsOpen} onVoiceCommand={(command) => void launchPrompt(command)} />
+          <CinematicMapWorkspace immersive initialPlace={mapOverlay.place} controlsVisible={mapControlsOpen} onClose={() => { setMapOverlay(null); setMapControlsOpen(false); }} onVoiceCommand={launchPrompt} response={response} responseStreaming={running} onOpenResponse={() => setResponseExpanded(true)} />
     </motion.section> : null}</AnimatePresence>
   </div>;
 }

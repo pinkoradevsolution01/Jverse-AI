@@ -1,7 +1,7 @@
 {
   "name": "@jverse/desktop",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "JVerse AI desktop authority shell",
   "main": "dist/main/index.js",
   "scripts": {
