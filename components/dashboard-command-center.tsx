@@ -2,17 +2,18 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity, BarChart3, Bot, Box, BrainCircuit, BriefcaseBusiness, CalendarDays,
   ChevronRight, Cloud, Code2, Database, Dumbbell, FileText, GraduationCap,
-  HardDrive, Home, ImageIcon, Layers3, MessageSquare, Mic, PlusSquare,
+  HardDrive, Home, ImageIcon, Layers3, Maximize2, MessageSquare, Mic, Minimize2, PlusSquare,
   Send, Settings, Sparkles, Volume2, Wifi, Zap,
 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 
 import { VoiceControl } from "./voice/voice-control";
 import type { VoiceState } from "./voice/voice-orb";
+import { BrandLogo } from "./brand-logo";
 
 type Module = {
   title: string;
@@ -40,7 +41,7 @@ const quickActions = [
 ];
 
 function JVerseMark({ small = false }: { small?: boolean }) {
-  return <span aria-hidden className={`jv-brand-mark ${small ? "jv-brand-mark-small" : ""}`}><i /><b /><em /></span>;
+  return <BrandLogo decorative className={`jv-brand-mark ${small ? "jv-brand-mark-small" : ""}`} />;
 }
 
 function StatusBar({ label, value, width, icon: Icon }: { label: string; value: string; width: string; icon: typeof Activity }) {
@@ -57,6 +58,7 @@ export function DashboardCommandCenter() {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [response, setResponse] = useState("");
   const [running, setRunning] = useState(false);
+  const [responseExpanded, setResponseExpanded] = useState(false);
 
   useEffect(() => {
     const update = () => setNow(new Date());
@@ -133,14 +135,16 @@ export function DashboardCommandCenter() {
         <div className="jv-module-list">{modules.map(({ title, subtitle, href, icon: Icon }) => <Link href={href} key={title} className="jv-module-card"><span><Icon size={29} /></span><div><b>{title}</b><small>{subtitle}</small></div><ChevronRight size={22} /></Link>)}</div>
       </section>
 
-      <section className="jv-reactor-stage" aria-label={`JVerse AI core: ${coreLabel[voiceState]}`}>
-        <div className="jv-reactor-cross jv-reactor-cross-x" /><div className="jv-reactor-cross jv-reactor-cross-y" />
-        <motion.button type="button" onClick={() => void launchPrompt("Hello JVerse. What can you help me with today?")} className={`jv-command-reactor jv-command-reactor-${voiceState}`} whileTap={{ scale: 0.97 }} aria-label="Ask JVerse AI for help">
-          <span className="jv-reactor-halo jv-reactor-halo-a" /><span className="jv-reactor-halo jv-reactor-halo-b" /><span className="jv-reactor-tick-ring" /><span className="jv-reactor-progress" /><span className="jv-reactor-scanline" />
-          <span className="jv-reactor-core"><JVerseMark /><strong>JVERSE <b>AI</b></strong><em>{coreLabel[voiceState]}</em></span>
-        </motion.button>
-        <p className="jv-reactor-caption"><Bot size={15} /> JVERSE CORE // {coreLabel[voiceState]}</p>
-        {response ? <p className="jv-core-response" role="status">{response}</p> : null}
+      <section className="jv-core-column">
+        <section className="jv-reactor-stage" aria-label={`JVerse AI core: ${coreLabel[voiceState]}`}>
+          <div className="jv-reactor-cross jv-reactor-cross-x" /><div className="jv-reactor-cross jv-reactor-cross-y" />
+          <motion.button type="button" onClick={() => void launchPrompt("Hello JVerse. What can you help me with today?")} className={`jv-command-reactor jv-command-reactor-${voiceState}`} whileTap={{ scale: 0.97 }} aria-label="Ask JVerse AI for help">
+            <span className="jv-reactor-halo jv-reactor-halo-a" /><span className="jv-reactor-halo jv-reactor-halo-b" /><span className="jv-reactor-tick-ring" /><span className="jv-reactor-progress" /><span className="jv-reactor-scanline" />
+            <span className="jv-reactor-core"><JVerseMark /><strong>JVERSE <b>AI</b></strong><em>{coreLabel[voiceState]}</em></span>
+          </motion.button>
+          <p className="jv-reactor-caption"><Bot size={15} /> JVERSE CORE // {coreLabel[voiceState]}</p>
+        </section>
+        {response ? <button type="button" className="jv-response-dock" onClick={() => setResponseExpanded(true)} aria-label="Open JVerse response in reading mode"><span><Bot size={15} /> JVERSE RESPONSE <em>{running ? "STREAMING" : "COMPLETE"}</em></span><p>{response}</p><Maximize2 size={16} /></button> : null}
       </section>
 
       <section className="jv-right-stack">
@@ -155,5 +159,12 @@ export function DashboardCommandCenter() {
       <div className="jv-footer-powered"><BarChart3 className="text-cyan-300" size={40} /><JVerseMark small /><span>Powered by JVerse</span></div>
     </footer>
     <div className="jv-command-corners" aria-hidden><i /><i /><i /><i /></div>
+    <AnimatePresence>{responseExpanded && response ? <motion.div className="jv-response-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setResponseExpanded(false)}>
+      <motion.section role="dialog" aria-modal="true" aria-label="JVerse AI response" className="jv-response-modal" initial={{ opacity: 0, y: 24, scale: .97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 24, scale: .97 }} onClick={(event) => event.stopPropagation()}>
+        <header><span><JVerseMark small /><b>JVERSE AI</b><em>{running ? "STREAMING RESPONSE" : "RESPONSE COMPLETE"}</em></span><button type="button" onClick={() => setResponseExpanded(false)}><Minimize2 size={17} /> Minimize</button></header>
+        <article aria-live="polite">{response}</article>
+        <footer><i className={running ? "is-live" : ""} />{running ? "JVerse is still responding…" : "Click Minimize to return to the command center."}</footer>
+      </motion.section>
+    </motion.div> : null}</AnimatePresence>
   </div>;
 }

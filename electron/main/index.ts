@@ -46,8 +46,17 @@ function rendererUrl() {
   return target;
 }
 
-function trayIcon() {
+function brandIcon() {
+  const logo = app.isPackaged
+    ? path.join(process.resourcesPath, "brand", "jverse-monogram.png")
+    : path.resolve(app.getAppPath(), "..", "public", "brand", "jverse-monogram.png");
+  const image = nativeImage.createFromPath(logo);
+  if (!image.isEmpty()) return image;
   return nativeImage.createFromDataURL("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPSczMicgaGVpZ2h0PSczMic+PGNpcmNsZSBjeD0nMTYnIGN5PScxNicgcj0nMTQnIGZpbGw9JyMwMGU1ZmYnLz48dGV4dCB4PScxNicgeT0nMjEnIGZpbGw9JyMwNTA4MTYnIGZvbnQtc2l6ZT0nMTYnIHRleHQtYW5jaG9yPSdtaWRkbGUnIGZvbnQtZmFtaWx5PSdBcmlhbCc+SjwvdGV4dD48L3N2Zz4=");
+}
+
+function trayIcon() {
+  return brandIcon();
 }
 
 function createWindow() {
@@ -58,6 +67,7 @@ function createWindow() {
     minHeight: 720,
     show: false,
     backgroundColor: "#050816",
+    icon: brandIcon(),
     webPreferences: {
       contextIsolation: true,
       sandbox: true,

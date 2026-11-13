@@ -9,6 +9,7 @@ import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "
 import { DEFAULT_QWEN_MODEL, type ChatStreamEvent } from "../../lib/ai/contracts";
 import { MarkdownMessage } from "./markdown-message";
 import { VoiceControl } from "../voice/voice-control";
+import { BrandLogo } from "../brand-logo";
 
 type ChatMessage = {
   id: string;
@@ -284,7 +285,7 @@ export function ChatWorkspace() {
     <section className="flex min-h-[calc(100vh-7rem)] flex-col gap-4">
       <header className="flex items-center justify-between gap-3 rounded-2xl border border-cyan-300/15 bg-[#071326]/80 px-4 py-3 shadow-[0_0_30px_rgba(0,229,255,.04)]">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-cyan-300/25 bg-cyan-300/10 text-cyan-200"><Sparkles size={18} /></span>
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-cyan-300/25 bg-cyan-300/10"><BrandLogo decorative className="h-8 w-9 object-contain" /></span>
           <div className="min-w-0">
             <h1 className="truncate text-sm font-semibold text-slate-100">JVerse AI Chat</h1>
             <p className="text-xs text-slate-400">Qwen 2.5 · {isLocalDesktop ? "private desktop context" : "scoped memory"} · streaming</p>
@@ -302,7 +303,7 @@ export function ChatWorkspace() {
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4 sm:p-6">
           {messages.length === 0 && status !== "error" ? (
             <div className="mx-auto flex min-h-64 max-w-xl flex-col items-center justify-center text-center">
-              <span className="mb-4 grid h-14 w-14 place-items-center rounded-2xl border border-cyan-300/25 bg-cyan-300/10 text-cyan-200"><Bot size={26} /></span>
+              <span className="mb-4 grid h-14 w-14 place-items-center rounded-2xl border border-cyan-300/25 bg-cyan-300/10"><BrandLogo decorative className="h-11 w-12 object-contain" /></span>
               <h2 className="text-lg font-semibold text-slate-100">How can JVerse help?</h2>
               <p className="mt-2 max-w-md text-sm leading-6 text-slate-400">Start a conversation. Responses stream as they are generated and render safe Markdown with highlighted code.</p>
             </div>
@@ -310,7 +311,7 @@ export function ChatWorkspace() {
           <AnimatePresence initial={false}>
             {messages.map((message) => (
               <motion.article key={message.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                {message.role === "assistant" ? <span className="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-cyan-300/10 text-cyan-200"><Bot size={15} /></span> : null}
+                {message.role === "assistant" ? <span className="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-cyan-300/10"><BrandLogo decorative className="h-6 w-6 object-contain" /></span> : null}
                 <div className={`max-w-[88%] rounded-2xl px-4 py-3 ${message.role === "user" ? "bg-violet-500/20 text-slate-100" : "border border-cyan-300/15 bg-[#050816]/70"}`}>
                   {message.role === "assistant" ? <MarkdownMessage content={message.content || "…"} /> : <p className="whitespace-pre-wrap text-sm leading-7">{message.content}</p>}
                   {message.pending ? <LoaderCircle className="mt-2 animate-spin text-cyan-300" size={14} /> : null}

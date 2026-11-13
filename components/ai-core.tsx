@@ -1,3 +1,5 @@
+import { BrandLogo } from "./brand-logo";
+
 export function AiCore() {
   const telemetry = [["COGNITION", "98.4%"], ["MEMORY", "SECURED"], ["MODE", "LOCAL"]] as const;
   return <section className="jv-hud-core" aria-label="JVerse AI core status">
@@ -13,7 +15,7 @@ export function AiCore() {
       <span className="jv-reactor-arc jv-reactor-arc-one" />
       <span className="jv-reactor-arc jv-reactor-arc-two" />
       <span className="jv-reactor-scan" />
-      <span className="jv-reactor-inner"><i>J</i><b>ACTIVE</b></span>
+      <span className="jv-reactor-inner"><BrandLogo decorative className="h-12 w-16 object-contain" /><b>ACTIVE</b></span>
       <span className="jv-reactor-marker jv-reactor-marker-one" />
       <span className="jv-reactor-marker jv-reactor-marker-two" />
       <span className="jv-reactor-marker jv-reactor-marker-three" />

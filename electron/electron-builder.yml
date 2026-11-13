@@ -1,5 +1,6 @@
 appId: ai.jverse.desktop
 productName: JVerse AI
+icon: build/icon.ico
 protocols:
   - name: JVerse Secure Sign In
     schemes:
@@ -11,6 +12,8 @@ files:
   - package.json
 asar: true
 extraResources:
+  - from: ../public/brand/jverse-monogram.png
+    to: brand/jverse-monogram.png
   - from: ../services/brain
     to: brain
     filter:
@@ -18,9 +21,12 @@ extraResources:
       - pyproject.toml
 electronUpdaterCompatibility: ">= 2.16"
 win:
+  icon: build/icon.ico
   target:
     - nsis
 nsis:
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
   oneClick: false
   allowToChangeInstallationDirectory: true
 mac:
