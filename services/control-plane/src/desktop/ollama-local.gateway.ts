@@ -1,6 +1,6 @@
 import type { DesktopProviderGateway, ProviderEvent } from "./desktop-provider.gateway";
 
-const ALLOWED_MODELS = new Set(["qwen2.5:7b"]);
+const ALLOWED_MODELS = new Set(["qwen2.5:1.5b"]);
 
 export type PromptMessage = { role: "system" | "user" | "assistant"; content: string };
 
@@ -17,7 +17,7 @@ export class OllamaLocalGateway implements DesktopProviderGateway {
     signal: AbortSignal;
   }): AsyncIterable<ProviderEvent> {
     if (!ALLOWED_MODELS.has(input.model)) {
-      yield { type: "error", code: "model_not_allowed", message: "Only qwen2.5:7b is enabled for JVerse AI." };
+      yield { type: "error", code: "model_not_allowed", message: "Only qwen2.5:1.5b is enabled for JVerse AI." };
       return;
     }
     let response: Response;
@@ -29,7 +29,7 @@ export class OllamaLocalGateway implements DesktopProviderGateway {
         signal: input.signal,
       });
     } catch {
-      yield { type: "error", code: "ollama_unavailable", message: "Ollama is unavailable. Start Ollama and install qwen2.5:7b." };
+      yield { type: "error", code: "ollama_unavailable", message: "Ollama is unavailable. Start Ollama and install qwen2.5:1.5b." };
       return;
     }
     if (!response.ok || !response.body) {

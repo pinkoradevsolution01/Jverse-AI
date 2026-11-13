@@ -1,2 +1,3 @@
-import { DashboardView } from "../../../components/views";
-export default function Page() { return <DashboardView />; }
+import { DashboardCommandCenter } from "../../../components/dashboard-command-center";
+
+export default function Page() { return <DashboardCommandCenter />; }

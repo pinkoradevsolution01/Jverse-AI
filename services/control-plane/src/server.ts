@@ -16,7 +16,7 @@ const chat = new ChatService(new ChatRepository(supabase), provider);
 const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "32kb" }));
-app.get("/health", (_request, response) => response.json({ status: "ok", provider: "ollama-local", model: "qwen2.5:7b" }));
+app.get("/health", (_request, response) => response.json({ status: "ok", provider: "ollama-local", model: "qwen2.5:1.5b" }));
 app.post("/v1/chat/stream", createChatRoute({
   controlPlaneToken: config.controlPlaneToken,
   chat,

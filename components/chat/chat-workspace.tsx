@@ -1,6 +1,7 @@
 "use client";
 
 import { createBrowserClient } from "@supabase/ssr";
+import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUp, Bot, LoaderCircle, Plus, Sparkles, Square, UserRound } from "lucide-react";
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -67,7 +68,10 @@ export function ChatWorkspace() {
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
   const [isLocalDesktop, setIsLocalDesktop] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const launchedPrompt = useRef<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const searchParams = useSearchParams();
+  const sharedPrompt = searchParams.get("prompt")?.trim() ?? "";
 
   const supabase = useMemo(() => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -241,6 +245,13 @@ export function ChatWorkspace() {
       setStatus("ready");
     }
   }
+
+  // Dashboard modules and voice commands enter the existing secure chat pipeline.
+  useEffect(() => {
+    if (!sharedPrompt || status !== "ready" || launchedPrompt.current === sharedPrompt) return;
+    launchedPrompt.current = sharedPrompt;
+    void submit(undefined, sharedPrompt);
+  }, [sharedPrompt, status, workspaceId]);
 
   function onComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === "Enter" && !event.shiftKey) {

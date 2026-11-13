@@ -153,7 +153,7 @@ export class LocalAgentManager {
 
   async chat(message: string, emit: (event: unknown) => void) {
     await this.start();
-    const response = await this.request("/v1/local/chat/stream", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, model: "qwen2.5:7b" }) });
+    const response = await this.request("/v1/local/chat/stream", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, model: "qwen2.5:1.5b" }) });
     if (!response.body) throw new Error("The local Agent did not open a response stream.");
     const reader = response.body.getReader();
     const decoder = new TextDecoder();

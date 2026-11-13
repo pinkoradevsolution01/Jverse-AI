@@ -36,6 +36,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const notifications = useShell((s) => s.notificationOpen);
   const setNotifications = useShell((s) => s.setNotificationOpen);
 
+  // The dashboard is an immersive command center with its own full-screen navigation.
+  if (pathname === "/dashboard") {
+    return <MotionConfig reducedMotion="user"><main id="main-content">{children}</main></MotionConfig>;
+  }
+
   return <MotionConfig reducedMotion="user">
     <div className="min-h-screen text-white">
       <a href="#main-content" className="absolute left-4 top-4 z-[80] -translate-y-16 rounded-md bg-cyan-300 px-3 py-2 text-sm font-bold text-[#050816] focus:translate-y-0">Skip to content</a>

@@ -6,7 +6,8 @@ import { shell } from "electron";
 
 import type { DesktopRuntimeComponent, DesktopRuntimeStatus } from "../shared/ipc";
 
-const QWEN_MODEL = "qwen2.5:7b";
+// 1.5B keeps enough memory available for Electron, Whisper, Piper, and Windows.
+const QWEN_MODEL = "qwen2.5:1.5b";
 const OFFICIAL_INSTALLERS = {
   ollama: "https://ollama.com/download",
   python: "https://www.python.org/downloads/windows/",

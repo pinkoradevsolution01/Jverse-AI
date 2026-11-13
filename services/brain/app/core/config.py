@@ -14,7 +14,8 @@ class Settings(BaseSettings):
     control_plane_token: SecretStr | None = Field(default=None, validation_alias=AliasChoices("CONTROL_PLANE_TOKEN", "AI_CONTROL_PLANE_TOKEN"))
     compat_local_ollama: bool = Field(default=False, validation_alias=AliasChoices("JVERSE_COMPAT_LOCAL_OLLAMA", "COMPAT_LOCAL_OLLAMA"))
     ollama_url: AnyHttpUrl = "http://127.0.0.1:11434"
-    allowed_model: str = "qwen2.5:7b"
+    # Fast local default for the supported 8 GB desktop profile.
+    allowed_model: str = "qwen2.5:1.5b"
     whisper_model: str = "base.en"
     whisper_device: str = "auto"
     whisper_compute_type: str = "int8"

@@ -8,7 +8,7 @@ export type LocalChatEvent =
   | { type: "done"; inputTokens?: number; outputTokens?: number }
   | { type: "error"; code: string; message: string };
 
-const ALLOWED_MODELS = new Set(["qwen2.5:7b"]);
+const ALLOWED_MODELS = new Set(["qwen2.5:1.5b"]);
 
 function localOllamaUrl() {
   const candidate = new URL(process.env.JVERSE_OLLAMA_URL ?? "http://127.0.0.1:11434");

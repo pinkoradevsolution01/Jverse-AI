@@ -17,7 +17,7 @@ function validRequest(body: unknown): body is { workspaceId: string; conversatio
   return typeof value.workspaceId === "string"
     && (value.conversationId === null || typeof value.conversationId === "string")
     && typeof value.message === "string" && value.message.length > 0 && value.message.length <= 24_000
-    && value.model === "qwen2.5:7b";
+    && value.model === "qwen2.5:1.5b";
 }
 
 function writeEvent(response: Response, event: ProviderEvent) {

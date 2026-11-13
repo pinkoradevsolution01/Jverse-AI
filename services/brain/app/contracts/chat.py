@@ -7,12 +7,12 @@ class ChatStreamRequest(BaseModel):
     workspace_id: str = Field(min_length=36, max_length=36)
     conversation_id: str | None = Field(default=None, min_length=36, max_length=36)
     message: str = Field(min_length=1, max_length=24_000)
-    model: str = "qwen2.5:7b"
+    model: str = "qwen2.5:1.5b"
 
 
 class LocalChatStreamRequest(BaseModel):
     message: str = Field(min_length=1, max_length=24_000)
-    model: str = "qwen2.5:7b"
+    model: str = "qwen2.5:1.5b"
 
 
 class StreamEvent(BaseModel):

@@ -1,4 +1,5 @@
-export const DEFAULT_QWEN_MODEL = "qwen2.5:7b";
+/** Balanced local profile for 8 GB Windows desktops. */
+export const DEFAULT_QWEN_MODEL = "qwen2.5:1.5b";
 
 export type ChatStreamRequest = {
   conversationId: string | null;
