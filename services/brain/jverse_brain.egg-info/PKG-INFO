@@ -12,3 +12,4 @@ Requires-Dist: pypdf<7,>=5
 Requires-Dist: python-docx<2,>=1.1
 Requires-Dist: faster-whisper<2,>=1.1
 Requires-Dist: python-multipart<1,>=0.0.20
+Requires-Dist: piper-tts<2,>=1.8

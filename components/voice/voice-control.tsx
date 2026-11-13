@@ -1,7 +1,7 @@
 "use client";
 
 import { Mic, MicOff, Volume2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { VoiceOrb, type VoiceState } from "./voice-orb";
 
@@ -136,14 +136,24 @@ export function VoiceControl({ onTranscript, speakText, isThinking = false }: { 
   const stream = useRef<MediaStream | null>(null);
   const chunks = useRef<Blob[]>([]);
   const audio = useRef<HTMLAudioElement | null>(null);
+  const audioContext = useRef<AudioContext | null>(null);
+  const activityFrame = useRef<number | null>(null);
+  const wasThinking = useRef(isThinking);
   const [state, setState] = useState<VoiceState>("idle");
   const [notice, setNotice] = useState("");
   const [wakeWordOnly, setWakeWordOnly] = useState(false);
+  const [autoSpeak, setAutoSpeak] = useState(false);
 
   useEffect(() => () => {
     recorder.current?.stop();
     stream.current?.getTracks().forEach((track) => track.stop());
+    if (activityFrame.current !== null) cancelAnimationFrame(activityFrame.current);
+    void audioContext.current?.close();
     audio.current?.pause();
+  }, []);
+
+  useEffect(() => {
+    setAutoSpeak(Boolean(window.jverseDesktop?.localAgent));
   }, []);
 
   async function transcribe(recording: Blob) {
@@ -188,8 +198,17 @@ export function VoiceControl({ onTranscript, speakText, isThinking = false }: { 
       stream.current = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       chunks.current = [];
       const instance = new MediaRecorder(stream.current, { mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : undefined });
+      const context = new AudioContext();
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 512;
+      context.createMediaStreamSource(stream.current).connect(analyser);
+      audioContext.current = context;
       instance.ondataavailable = (event) => { if (event.data.size) chunks.current.push(event.data); };
       instance.onstop = () => {
+        if (activityFrame.current !== null) cancelAnimationFrame(activityFrame.current);
+        activityFrame.current = null;
+        void audioContext.current?.close();
+        audioContext.current = null;
         stream.current?.getTracks().forEach((track) => track.stop());
         stream.current = null;
         void transcribe(new Blob(chunks.current, { type: instance.mimeType || "audio/webm" }));
@@ -197,6 +216,33 @@ export function VoiceControl({ onTranscript, speakText, isThinking = false }: { 
       recorder.current = instance;
       instance.start();
       setState("listening");
+      // After speech is detected, a short pause ends the recording and sends it.
+      const samples = new Uint8Array(analyser.fftSize);
+      let heardSpeech = false;
+      let quietSince: number | null = null;
+      const watchActivity = () => {
+        if (instance.state !== "recording") return;
+        analyser.getByteTimeDomainData(samples);
+        let energy = 0;
+        for (const sample of samples) {
+          const centered = (sample - 128) / 128;
+          energy += centered * centered;
+        }
+        const level = Math.sqrt(energy / samples.length);
+        const now = performance.now();
+        if (level > 0.018) {
+          heardSpeech = true;
+          quietSince = null;
+        } else if (heardSpeech) {
+          quietSince ??= now;
+          if (now - quietSince >= 1200) {
+            instance.stop();
+            return;
+          }
+        }
+        activityFrame.current = requestAnimationFrame(watchActivity);
+      };
+      activityFrame.current = requestAnimationFrame(watchActivity);
       setNotice(wakeWordOnly ? 'Listening for “Hey JVerse”…' : "Listening…");
     } catch {
       setState("error"); setNotice("Microphone permission is required for voice input.");
@@ -207,7 +253,7 @@ export function VoiceControl({ onTranscript, speakText, isThinking = false }: { 
     if (recorder.current?.state === "recording") recorder.current.stop();
   }
 
-  async function speak() {
+  const speak = useCallback(async () => {
     if (!speakText?.trim()) { setNotice("There is no assistant response available to read."); return; }
     setState("speaking"); setNotice("Speaking with Piper…");
     try {
@@ -236,7 +282,13 @@ export function VoiceControl({ onTranscript, speakText, isThinking = false }: { 
     } catch (error) {
       setState("error"); setNotice(error instanceof Error ? error.message : "Piper speech could not start.");
     }
-  }
+  }, [speakText]);
+
+  useEffect(() => {
+    const completedGeneration = wasThinking.current && !isThinking;
+    wasThinking.current = isThinking;
+    if (autoSpeak && completedGeneration && speakText?.trim()) void speak();
+  }, [autoSpeak, isThinking, speak, speakText]);
 
   const visualState: VoiceState = state === "idle" && isThinking ? "thinking" : state;
   return <div className="flex items-center gap-2" aria-label="JVerse voice assistant controls">
@@ -245,6 +297,7 @@ export function VoiceControl({ onTranscript, speakText, isThinking = false }: { 
       {state === "listening" ? <MicOff size={17} /> : <Mic size={17} />}
     </button>
     <button type="button" onClick={() => void speak()} aria-label="Read last response aloud with Piper" className="grid h-10 w-10 place-items-center rounded-xl border border-cyan-300/20 text-cyan-100 transition hover:bg-cyan-300/10"><Volume2 size={17} /></button>
+    <button type="button" onClick={() => setAutoSpeak((current) => !current)} className={`hidden rounded-lg px-2 py-1 text-[10px] font-semibold sm:block ${autoSpeak ? "bg-cyan-300/20 text-cyan-100" : "text-slate-500"}`}>Auto voice</button>
     <button type="button" onClick={() => setWakeWordOnly((current) => !current)} className={`hidden rounded-lg px-2 py-1 text-[10px] font-semibold sm:block ${wakeWordOnly ? "bg-violet-400/20 text-violet-100" : "text-slate-500"}`}>Hey JVerse</button>
     {notice ? <span role="status" className="hidden max-w-44 text-[10px] text-slate-400 lg:block">{notice}</span> : null}
   </div>;

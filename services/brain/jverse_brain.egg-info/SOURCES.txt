@@ -17,6 +17,7 @@ app/services/chat_service.py
 app/services/context_service.py
 app/services/desktop_service.py
 app/services/knowledge_pipeline.py
+app/services/local_chat_service.py
 app/services/voice_service.py
 jverse_brain.egg-info/PKG-INFO
 jverse_brain.egg-info/SOURCES.txt

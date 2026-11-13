@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     supabase_publishable_key: SecretStr | None = Field(default=None, validation_alias=AliasChoices("SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"))
     supabase_service_role_key: SecretStr | None = Field(default=None, validation_alias=AliasChoices("SUPABASE_SERVICE_ROLE_KEY"))
     control_plane_token: SecretStr | None = Field(default=None, validation_alias=AliasChoices("CONTROL_PLANE_TOKEN", "AI_CONTROL_PLANE_TOKEN"))
-    compat_local_ollama: bool = False
+    compat_local_ollama: bool = Field(default=False, validation_alias=AliasChoices("JVERSE_COMPAT_LOCAL_OLLAMA", "COMPAT_LOCAL_OLLAMA"))
     ollama_url: AnyHttpUrl = "http://127.0.0.1:11434"
     allowed_model: str = "qwen2.5:7b"
     whisper_model: str = "base.en"

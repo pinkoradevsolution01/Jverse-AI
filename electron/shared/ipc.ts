@@ -26,6 +26,11 @@ export type DesktopLocalAgentEvent = {
   event: unknown;
 };
 
+export type DesktopAuthResult =
+  | { status: "idle" }
+  | { status: "error"; message: string }
+  | { status: "ready"; accessToken: string; refreshToken: string };
+
 export type DesktopNotification = {
   title: string;
   body: string;
@@ -63,8 +68,10 @@ export type DesktopApi = {
     onEvent(listener: (event: DesktopLocalAgentEvent) => void): () => void;
   };
   auth: {
-    /** Opens only a validated Supabase Google OAuth URL in the system browser. */
-    openGoogleOAuth(url: string): Promise<void>;
+    /** Starts PKCE in Electron's trusted main process and opens Google externally. */
+    startGoogleOAuth(): Promise<void>;
+    consumeGoogleResult(): Promise<DesktopAuthResult>;
+    onGoogleResult(listener: (result: DesktopAuthResult) => void): () => void;
   };
   updates: {
     check(): Promise<void>;

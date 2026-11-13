@@ -154,9 +154,9 @@ export function ChatWorkspace() {
   const stopStreaming = () => abortRef.current?.abort();
   const lastAssistantResponse = [...messages].reverse().find((message) => message.role === "assistant" && !message.pending)?.content;
 
-  async function submit(event?: FormEvent) {
+  async function submit(event?: FormEvent, dictatedMessage?: string) {
     event?.preventDefault();
-    const message = draft.trim();
+    const message = (dictatedMessage ?? draft).trim();
     if (!message || !workspaceId || status === "streaming") return;
 
     const userMessage: ChatMessage = { id: crypto.randomUUID(), role: "user", content: message };
@@ -280,7 +280,7 @@ export function ChatWorkspace() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <VoiceControl speakText={lastAssistantResponse} isThinking={status === "streaming"} onTranscript={(text) => setDraft((current) => `${current} ${text}`.trim())} />
+          <VoiceControl speakText={lastAssistantResponse} isThinking={status === "streaming"} onTranscript={(text) => { setDraft(text); void submit(undefined, text); }} />
           <button type="button" onClick={startNewConversation} className="inline-flex items-center gap-2 rounded-xl border border-cyan-300/20 px-3 py-2 text-xs font-medium text-cyan-100 transition hover:bg-cyan-300/10">
             <Plus size={15} /> New chat
           </button>

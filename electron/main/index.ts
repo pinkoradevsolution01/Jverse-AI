@@ -6,6 +6,7 @@ import { AgentDesktopBridge } from "./agent-bridge";
 import { DesktopOsActions } from "./os-actions";
 import { DesktopRuntimeManager } from "./runtime-manager";
 import { LocalAgentManager } from "./local-agent-manager";
+import { DesktopAuthManager } from "./desktop-auth-manager";
 import { isAllowedNavigation, isTrustedRenderer } from "./security";
 import { DesktopUpdater } from "./updater";
 
@@ -14,24 +15,19 @@ let tray: Tray | null = null;
 let desktopBridge: AgentDesktopBridge | null = null;
 let runtimeManager: DesktopRuntimeManager | null = null;
 let localAgent: LocalAgentManager | null = null;
-let pendingAuthCallback: string | null = null;
+let desktopAuth: DesktopAuthManager | null = null;
 
-function desktopAuthDestination(callbackUrl: string) {
+function isDesktopAuthCallback(callbackUrl: string) {
   try {
     const callback = new URL(callbackUrl);
-    if (callback.protocol !== "jverse:" || callback.hostname !== "auth" || callback.pathname !== "/callback") return null;
-    const target = new URL(rendererUrl());
-    target.pathname = "/auth/desktop-callback";
-    target.search = callback.search;
-    return target.toString();
-  } catch { return null; }
+    return callback.protocol === "jverse:" && callback.hostname === "auth" && callback.pathname === "/callback";
+  } catch { return false; }
 }
 
 function handleDesktopAuthCallback(callbackUrl: string) {
-  const destination = desktopAuthDestination(callbackUrl);
-  if (!destination) return;
-  if (!mainWindow) { pendingAuthCallback = destination; return; }
-  void mainWindow.loadURL(destination);
+  if (!isDesktopAuthCallback(callbackUrl) || !desktopAuth) return;
+  void desktopAuth.completeCallback(callbackUrl);
+  if (!mainWindow) return;
   mainWindow.show();
   mainWindow.focus();
 }
@@ -98,6 +94,11 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
     callback(permission === "media" && isTrustedRenderer(webContents?.getURL() ?? ""));
   });
+  desktopAuth = new DesktopAuthManager();
+  desktopAuth.onResult((result) => {
+    const target = mainWindow;
+    if (target && !target.isDestroyed()) target.webContents.send("desktop:auth:google-result", result);
+  });
   const window = createWindow();
   const launchCallback = protocolArgument(process.argv);
   if (launchCallback) handleDesktopAuthCallback(launchCallback);
@@ -114,7 +115,7 @@ app.whenReady().then(() => {
     const target = mainWindow;
     if (target && !target.isDestroyed()) target.webContents.send("desktop:local-agent:progress", message);
   });
-  registerDesktopIpc(updater, desktopBridge, runtimeManager, localAgent);
+  registerDesktopIpc(updater, desktopBridge, runtimeManager, localAgent, desktopAuth);
   desktopBridge.start();
   createTray();
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });

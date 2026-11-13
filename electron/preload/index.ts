@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-import type { DesktopApi, DesktopLocalAgentEvent, DesktopUpdateEvent, PathSelection } from "../shared/ipc";
+import type { DesktopApi, DesktopAuthResult, DesktopLocalAgentEvent, DesktopUpdateEvent, PathSelection } from "../shared/ipc";
 
 const desktopApi: DesktopApi = {
   pickFile: () => ipcRenderer.invoke("desktop:pick-file") as Promise<PathSelection>,
@@ -39,7 +39,14 @@ const desktopApi: DesktopApi = {
     },
   },
   auth: {
-    openGoogleOAuth: (url) => ipcRenderer.invoke("desktop:auth:open-google-oauth", url) as Promise<void>,
+    startGoogleOAuth: () => ipcRenderer.invoke("desktop:auth:start-google-oauth") as Promise<void>,
+    consumeGoogleResult: () => ipcRenderer.invoke("desktop:auth:consume-google-result") as Promise<DesktopAuthResult>,
+    onGoogleResult: (listener) => {
+      const channel = "desktop:auth:google-result";
+      const wrapped = (_event: Electron.IpcRendererEvent, result: DesktopAuthResult) => listener(result);
+      ipcRenderer.on(channel, wrapped);
+      return () => ipcRenderer.removeListener(channel, wrapped);
+    },
   },
   updates: {
     check: () => ipcRenderer.invoke("desktop:updates:check") as Promise<void>,

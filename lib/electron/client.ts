@@ -21,7 +21,9 @@ export type DesktopBridge = {
     onEvent(listener: (value: { requestId: string; event: unknown }) => void): () => void;
   };
   auth: {
-    openGoogleOAuth(url: string): Promise<void>;
+    startGoogleOAuth(): Promise<void>;
+    consumeGoogleResult(): Promise<{ status: "idle" } | { status: "error"; message: string } | { status: "ready"; accessToken: string; refreshToken: string }>;
+    onGoogleResult(listener: (result: { status: "idle" } | { status: "error"; message: string } | { status: "ready"; accessToken: string; refreshToken: string }) => void): () => void;
   };
 };
 

@@ -64,7 +64,7 @@ class VoiceService:
     async def synthesize(self, text: str) -> bytes:
         piper_executable = Path(sys.executable).parent / ("piper.exe" if sys.platform == "win32" else "piper")
         executable = self.settings.piper_executable or shutil.which("piper") or str(piper_executable)
-        bundled_model = Path(__file__).resolve().parents[2] / "models" / "en_US-lessac-medium.onnx"
+        bundled_model = Path(__file__).resolve().parents[2] / "models" / "en_US-ryan-high.onnx"
         model = self.settings.piper_model_path or (str(bundled_model) if bundled_model.is_file() else None)
         if not model:
             raise VoiceUnavailableError("Piper is not configured on this JVerse Agent host.")

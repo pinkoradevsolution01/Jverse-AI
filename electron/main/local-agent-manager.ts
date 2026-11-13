@@ -10,7 +10,7 @@ import type { DesktopLocalAgentStatus } from "../shared/ipc";
 
 const LOCAL_HOST = "127.0.0.1";
 const LOCAL_PORT = 8788;
-const MODEL = "en_US-lessac-medium";
+const MODEL = "en_US-ryan-high";
 
 type ProgressListener = (message: string) => void;
 
@@ -56,7 +56,7 @@ export class LocalAgentManager {
   private modelPath() { return path.join(this.modelDir(), `${MODEL}.onnx`); }
   private readyFile() { return path.join(this.runtimeDir(), ".agent-ready"); }
   private brainDir() { return app.isPackaged ? path.join(process.resourcesPath, "brain") : path.resolve(app.getAppPath(), "..", "services", "brain"); }
-  private installed() { return fs.existsSync(this.python()) && fs.existsSync(this.readyFile()) && fs.existsSync(path.join(this.brainDir(), "pyproject.toml")); }
+  private installed() { return fs.existsSync(this.python()) && fs.existsSync(this.readyFile()) && fs.existsSync(this.modelPath()) && fs.existsSync(path.join(this.brainDir(), "pyproject.toml")); }
   private url(pathname: string) { return `http://${LOCAL_HOST}:${LOCAL_PORT}${pathname}`; }
 
   async status(): Promise<DesktopLocalAgentStatus> {
@@ -68,6 +68,14 @@ export class LocalAgentManager {
   async prepare() {
     if (this.installed()) {
       this.progress("Local Python Agent is already prepared.");
+      return;
+    }
+    if (fs.existsSync(this.python()) && fs.existsSync(this.readyFile())) {
+      fs.mkdirSync(this.modelDir(), { recursive: true });
+      this.progress("Downloading the JVerse Ryan voice…");
+      await run(this.python(), ["-m", "piper.download_voices", "--download-dir", this.modelDir(), MODEL], this.runtimeDir(), undefined, (line) => this.progress(line));
+      this.progress("JVerse Ryan voice is ready. Starting the local Agent…");
+      await this.start();
       return;
     }
     const systemPython = this.runtime.pythonExecutable();
@@ -101,6 +109,7 @@ export class LocalAgentManager {
         JVERSE_LOCAL_MODE: "true",
         JVERSE_LOCAL_AGENT_TOKEN: this.token,
         JVERSE_COMPAT_LOCAL_OLLAMA: "true",
+        COMPAT_LOCAL_OLLAMA: "true",
         JVERSE_OLLAMA_URL: "http://127.0.0.1:11434",
         PIPER_MODEL_PATH: this.modelPath(),
         WHISPER_MODEL: "base.en",

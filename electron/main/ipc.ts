@@ -1,26 +1,13 @@
-import { BrowserWindow, ipcMain, shell } from "electron";
+import { BrowserWindow, ipcMain } from "electron";
 
 import { DesktopOsActions } from "./os-actions";
 import { AgentDesktopBridge } from "./agent-bridge";
 import { DesktopRuntimeManager } from "./runtime-manager";
 import { LocalAgentManager } from "./local-agent-manager";
+import { DesktopAuthManager } from "./desktop-auth-manager";
 import { assertTrustedRenderer } from "./security";
 import { DesktopUpdater } from "./updater";
 import type { DesktopNotification } from "../shared/ipc";
-
-const SUPABASE_AUTH_HOST = process.env.JVERSE_SUPABASE_AUTH_HOST ?? "cczyzhhreegioovlokyx.supabase.co";
-
-function validGoogleOAuthUrl(value: unknown): value is string {
-  if (typeof value !== "string" || value.length > 8_192) return false;
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:"
-      && url.hostname === SUPABASE_AUTH_HOST
-      && url.pathname === "/auth/v1/authorize"
-      && url.searchParams.get("provider") === "google"
-      && url.searchParams.get("redirect_to") === "jverse://auth/callback";
-  } catch { return false; }
-}
 
 function parentWindow(event: Electron.IpcMainInvokeEvent) {
   const window = BrowserWindow.fromWebContents(event.sender);
@@ -35,7 +22,7 @@ function validNotification(value: unknown): value is DesktopNotification {
     && typeof notification.body === "string" && notification.body.length <= 1_000;
 }
 
-export function registerDesktopIpc(updater: DesktopUpdater, bridge: AgentDesktopBridge, runtime: DesktopRuntimeManager, localAgent: LocalAgentManager) {
+export function registerDesktopIpc(updater: DesktopUpdater, bridge: AgentDesktopBridge, runtime: DesktopRuntimeManager, localAgent: LocalAgentManager, auth: DesktopAuthManager) {
   const os = new DesktopOsActions();
   ipcMain.handle("desktop:pick-file", (event) => {
     assertTrustedRenderer(event);
@@ -85,11 +72,11 @@ export function registerDesktopIpc(updater: DesktopUpdater, bridge: AgentDesktop
     if (typeof text !== "string" || !text.trim() || text.length > 12_000) throw new Error("Invalid speech text.");
     return localAgent.speak(text);
   });
-  ipcMain.handle("desktop:auth:open-google-oauth", async (event, url: unknown) => {
+  ipcMain.handle("desktop:auth:start-google-oauth", async (event) => {
     assertTrustedRenderer(event);
-    if (!validGoogleOAuthUrl(url)) throw new Error("The requested Google sign-in URL is not trusted.");
-    await shell.openExternal(url);
+    await auth.startGoogleOAuth();
   });
+  ipcMain.handle("desktop:auth:consume-google-result", (event) => { assertTrustedRenderer(event); return auth.consume(); });
   ipcMain.handle("desktop:updates:check", async (event) => {
     assertTrustedRenderer(event);
     await updater.check();

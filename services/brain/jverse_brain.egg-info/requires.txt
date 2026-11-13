@@ -7,3 +7,4 @@ pypdf<7,>=5
 python-docx<2,>=1.1
 faster-whisper<2,>=1.1
 python-multipart<1,>=0.0.20
+piper-tts<2,>=1.8
