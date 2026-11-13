@@ -131,7 +131,7 @@ function LegacyVoiceControl({ onTranscript, speakText }: { onTranscript(text: st
 }
 
 /** Open-source voice client: audio is transcribed by Faster-Whisper and read by Piper. */
-export function VoiceControl({ onTranscript, speakText, isThinking = false, onStateChange }: { onTranscript(text: string): void; speakText?: string; isThinking?: boolean; onStateChange?: (state: VoiceState) => void }) {
+export function VoiceControl({ onTranscript, speakText, isThinking = false, onStateChange, autoStart = false, className = "" }: { onTranscript(text: string): void; speakText?: string; isThinking?: boolean; onStateChange?: (state: VoiceState) => void; autoStart?: boolean; className?: string }) {
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const chunks = useRef<Blob[]>([]);
@@ -139,6 +139,7 @@ export function VoiceControl({ onTranscript, speakText, isThinking = false, onSt
   const audioContext = useRef<AudioContext | null>(null);
   const activityFrame = useRef<number | null>(null);
   const wasThinking = useRef(isThinking);
+  const autoStarted = useRef(false);
   const [state, setState] = useState<VoiceState>("idle");
   const [notice, setNotice] = useState("");
   const [wakeWordOnly, setWakeWordOnly] = useState(false);
@@ -155,6 +156,14 @@ export function VoiceControl({ onTranscript, speakText, isThinking = false, onSt
   useEffect(() => {
     setAutoSpeak(Boolean(window.jverseDesktop?.localAgent));
   }, []);
+
+  useEffect(() => {
+    if (!autoStart || autoStarted.current) return;
+    autoStarted.current = true;
+    void startListening();
+  // This is intentionally one-shot: it captures the immediate follow-up map command.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart]);
 
   async function transcribe(recording: Blob) {
     setState("processing");
@@ -292,7 +301,7 @@ export function VoiceControl({ onTranscript, speakText, isThinking = false, onSt
 
   const visualState: VoiceState = state === "idle" && isThinking ? "thinking" : state;
   useEffect(() => { onStateChange?.(visualState); }, [onStateChange, visualState]);
-  return <div className="flex items-center gap-2" aria-label="JVerse voice assistant controls">
+  return <div className={`flex items-center gap-2 ${className}`} aria-label="JVerse voice assistant controls">
     <VoiceOrb state={visualState} compact />
     <button type="button" onClick={state === "listening" ? stopListening : () => void startListening()} aria-label={state === "listening" ? "Stop voice input" : "Start voice input"} className="grid h-10 w-10 place-items-center rounded-xl border border-cyan-300/20 text-cyan-100 transition hover:bg-cyan-300/10">
       {state === "listening" ? <MicOff size={17} /> : <Mic size={17} />}

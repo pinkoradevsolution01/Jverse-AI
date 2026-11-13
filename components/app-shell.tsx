@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
-import { Bell, Bot, BrainCircuit, ChevronLeft, Command, FolderKanban, LayoutDashboard, Menu, MessageSquare, Search, Settings, X } from "lucide-react";
+import { Bell, Bot, BrainCircuit, ChevronLeft, Command, FolderKanban, LayoutDashboard, MapPinned, Menu, MessageSquare, Search, Settings, X } from "lucide-react";
 import { useShell } from "./shell-provider";
 import { BrandLogo } from "./brand-logo";
 
@@ -10,6 +10,7 @@ const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/knowledge", label: "Knowledge", icon: BrainCircuit },
+  { href: "/map", label: "AI Map", icon: MapPinned },
   { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/developer", label: "Developer", icon: Bot },
 ];

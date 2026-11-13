@@ -99,10 +99,11 @@ app.whenReady().then(() => {
   app.setAsDefaultProtocolClient("jverse");
   app.setAppUserModelId("ai.jverse.desktop");
   session.defaultSession.setPermissionCheckHandler((webContents, permission) => (
-    permission === "media" && isTrustedRenderer(webContents?.getURL() ?? "")
+    (permission === "media" || permission === "geolocation") && isTrustedRenderer(webContents?.getURL() ?? "")
   ));
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-    callback(permission === "media" && isTrustedRenderer(webContents?.getURL() ?? ""));
+    // Microphone and current location are only available to the trusted JVerse UI.
+    callback((permission === "media" || permission === "geolocation") && isTrustedRenderer(webContents?.getURL() ?? ""));
   });
   desktopAuth = new DesktopAuthManager();
   desktopAuth.onResult((result) => {

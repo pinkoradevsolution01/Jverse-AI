@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity, BarChart3, Bot, Box, BrainCircuit, BriefcaseBusiness, CalendarDays,
   ChevronRight, Cloud, Code2, Database, Dumbbell, FileText, GraduationCap,
-  HardDrive, Home, ImageIcon, Layers3, Maximize2, MessageSquare, Mic, Minimize2, PlusSquare,
+  HardDrive, Home, ImageIcon, Layers3, MapPinned, Maximize2, MessageSquare, Mic, Minimize2, PlusSquare,
   Send, Settings, Sparkles, Volume2, Wifi, Zap,
 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
@@ -14,6 +14,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { VoiceControl } from "./voice/voice-control";
 import type { VoiceState } from "./voice/voice-orb";
 import { BrandLogo } from "./brand-logo";
+import { JVerseMapWorkspace } from "./map/jverse-map-workspace";
 
 type Module = {
   title: string;
@@ -51,6 +52,19 @@ function StatusBar({ label, value, width, icon: Icon }: { label: string; value: 
   </div>;
 }
 
+function mapPlaceFromCommand(command: string) {
+  if (!/\b(map|directions?|navigate|route)\b/i.test(command)) return null;
+  const place = command
+    .replace(/^\s*(?:hey\s+)?jverse[\s,:-]*/i, "")
+    .replace(/^(?:please\s+)?(?:open|show|launch)\s+(?:(?:a|the)\s+)?map(?:\s+(?:to|in|at|for|of))?\s*/i, "")
+    .replace(/^map(?:\s+(?:to|in|at|for|of))?\s*/i, "")
+    .replace(/^(?:get\s+)?directions?\s+(?:to|for)\s*/i, "")
+    .replace(/^navigate\s+(?:to\s*)?/i, "")
+    .replace(/^route\s+(?:to\s*)?/i, "")
+    .trim();
+  return place || "";
+}
+
 export function DashboardCommandCenter() {
   const router = useRouter();
   const [now, setNow] = useState<Date | null>(null);
@@ -59,6 +73,8 @@ export function DashboardCommandCenter() {
   const [response, setResponse] = useState("");
   const [running, setRunning] = useState(false);
   const [responseExpanded, setResponseExpanded] = useState(false);
+  const [mapOverlay, setMapOverlay] = useState<{ place: string } | null>(null);
+  const [mapControlsOpen, setMapControlsOpen] = useState(false);
 
   useEffect(() => {
     const update = () => setNow(new Date());
@@ -81,6 +97,16 @@ export function DashboardCommandCenter() {
   };
   const launchPrompt = async (prompt: string) => {
     if (!prompt.trim() || running) return;
+    const closeMap = /\b(?:close|hide|exit)\s+(?:the\s+)?(?:ai\s+)?map\b/i.test(prompt);
+    const openMapControls = /\b(?:open|show)\s+(?:the\s+)?(?:map\s+)?(?:buttons|controls|directions)\b/i.test(prompt);
+    if (mapOverlay && closeMap) { setMapOverlay(null); setMapControlsOpen(false); return; }
+    if (mapOverlay && openMapControls) { setMapControlsOpen(true); return; }
+    const mapPlace = mapPlaceFromCommand(prompt);
+    if (mapPlace !== null) {
+      setMapOverlay({ place: mapPlace });
+      setMapControlsOpen(openMapControls);
+      return;
+    }
     // Browser users enter the authenticated Chat workspace. Desktop users can
     // receive a private local response directly from the animated core.
     if (!window.jverseDesktop?.localAgent) {
@@ -126,7 +152,7 @@ export function DashboardCommandCenter() {
     </header>
 
     <aside className="jv-icon-rail" aria-label="Primary navigation">
-      <Link href="/dashboard" aria-label="Dashboard"><Home /></Link><Link href="/chat" aria-label="Chat"><MessageSquare /></Link><Link href="/knowledge" aria-label="Knowledge"><Box /></Link><Link href="/developer" aria-label="Developer"><Code2 /></Link><Link href="/projects" aria-label="Projects"><BarChart3 /></Link><Link href="/settings" aria-label="Settings"><Settings /></Link>
+      <Link href="/dashboard" aria-label="Dashboard"><Home /></Link><Link href="/chat" aria-label="Chat"><MessageSquare /></Link><Link href="/knowledge" aria-label="Knowledge"><Box /></Link><Link href="/map" aria-label="AI Map"><MapPinned /></Link><Link href="/developer" aria-label="Developer"><Code2 /></Link><Link href="/projects" aria-label="Projects"><BarChart3 /></Link><Link href="/settings" aria-label="Settings"><Settings /></Link>
     </aside>
 
     <main className="jv-command-main">
@@ -166,5 +192,8 @@ export function DashboardCommandCenter() {
         <footer><i className={running ? "is-live" : ""} />{running ? "JVerse is still responding…" : "Click Minimize to return to the command center."}</footer>
       </motion.section>
     </motion.div> : null}</AnimatePresence>
+    <AnimatePresence>{mapOverlay ? <motion.section className="jv-ai-map-overlay" aria-label="JVerse AI Map" initial={{ opacity: 0, scale: 1.04 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: .98 }} transition={{ duration: .42, ease: "easeOut" }}>
+      <JVerseMapWorkspace immersive initialPlace={mapOverlay.place} controlsVisible={mapControlsOpen} onVoiceCommand={(command) => void launchPrompt(command)} />
+    </motion.section> : null}</AnimatePresence>
   </div>;
 }
