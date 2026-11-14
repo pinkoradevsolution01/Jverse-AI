@@ -16,7 +16,11 @@ class Settings(BaseSettings):
     ollama_url: AnyHttpUrl = "http://127.0.0.1:11434"
     # Fast local default for the supported 8 GB desktop profile.
     allowed_model: str = "qwen2.5:1.5b"
-    whisper_model: str = "base.en"
+    ollama_keep_alive: str = "30m"
+    ollama_context_tokens: int = 2048
+    ollama_max_tokens: int = 180
+    # `base` is multilingual; `base.en` cannot reliably recognize Tagalog speech.
+    whisper_model: str = "base"
     whisper_device: str = "auto"
     whisper_compute_type: str = "int8"
     piper_executable: str | None = None

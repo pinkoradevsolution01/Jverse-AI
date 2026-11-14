@@ -42,6 +42,7 @@ export class LocalAgentManager {
   private child: ChildProcess | null = null;
   private readonly token = randomBytes(32).toString("base64url");
   private readonly listeners = new Set<ProgressListener>();
+  private readonly activeChats = new Map<string, AbortController>();
   private lastError = "";
 
   constructor(private readonly runtime: DesktopRuntimeManager) {}
@@ -90,7 +91,7 @@ export class LocalAgentManager {
     this.progress("Downloading the open-source Piper voice…");
     await run(this.python(), ["-m", "piper.download_voices", "--download-dir", this.modelDir(), MODEL], this.runtimeDir(), undefined, (line) => this.progress(line));
     this.progress("Preparing the Faster-Whisper speech model…");
-    await run(this.python(), ["-c", "from faster_whisper import WhisperModel; WhisperModel('base.en', device='cpu', compute_type='int8'); print('ready')"], this.runtimeDir(), undefined, (line) => this.progress(line));
+    await run(this.python(), ["-c", "from faster_whisper import WhisperModel; WhisperModel('base', device='cpu', compute_type='int8'); print('ready')"], this.runtimeDir(), undefined, (line) => this.progress(line));
     fs.writeFileSync(this.readyFile(), "ready\n", "utf8");
     this.progress("Local JVerse Agent is ready. Starting it now…");
     await this.start();
@@ -112,7 +113,7 @@ export class LocalAgentManager {
         COMPAT_LOCAL_OLLAMA: "true",
         JVERSE_OLLAMA_URL: "http://127.0.0.1:11434",
         PIPER_MODEL_PATH: this.modelPath(),
-        WHISPER_MODEL: "base.en",
+        WHISPER_MODEL: "base",
         WHISPER_DEVICE: "cpu",
         WHISPER_COMPUTE_TYPE: "int8",
       },
@@ -151,24 +152,39 @@ export class LocalAgentManager {
     return response;
   }
 
-  async chat(message: string, emit: (event: unknown) => void) {
+  async chat(requestId: string, message: string, emit: (event: unknown) => void) {
     await this.start();
-    const response = await this.request("/v1/local/chat/stream", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, model: "qwen2.5:1.5b" }) });
-    if (!response.body) throw new Error("The local Agent did not open a response stream.");
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const blocks = buffer.split("\n\n");
-      buffer = blocks.pop() ?? "";
-      for (const block of blocks) {
-        const data = block.split("\n").find((line) => line.startsWith("data:"))?.slice(5).trim();
-        if (data) { try { emit(JSON.parse(data)); } catch { /* malformed sidecar frame is ignored */ } }
+    const controller = new AbortController();
+    this.activeChats.set(requestId, controller);
+    try {
+      const response = await this.request("/v1/local/chat/stream", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, model: "qwen2.5:1.5b" }), signal: controller.signal });
+      if (!response.body) throw new Error("The local Agent did not open a response stream.");
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split("\n\n");
+        buffer = blocks.pop() ?? "";
+        for (const block of blocks) {
+          const data = block.split("\n").find((line) => line.startsWith("data:"))?.slice(5).trim();
+          if (data) { try { emit(JSON.parse(data)); } catch { /* malformed sidecar frame is ignored */ } }
+        }
       }
+    } catch (error) {
+      if (!controller.signal.aborted) throw error;
+    } finally {
+      this.activeChats.delete(requestId);
     }
+  }
+
+  cancelChat(requestId: string) {
+    const controller = this.activeChats.get(requestId);
+    if (!controller) return false;
+    controller.abort();
+    return true;
   }
 
   async transcribe(audio: Uint8Array) {

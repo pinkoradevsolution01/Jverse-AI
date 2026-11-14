@@ -69,6 +69,7 @@ export function ChatWorkspace() {
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
   const [isLocalDesktop, setIsLocalDesktop] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const localRequestIdRef = useRef<string | null>(null);
   const launchedPrompt = useRef<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
@@ -156,7 +157,14 @@ export function ChatWorkspace() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const stopStreaming = () => abortRef.current?.abort();
+  const stopStreaming = () => {
+    abortRef.current?.abort();
+    const requestId = localRequestIdRef.current;
+    if (requestId) void window.jverseDesktop?.localAgent.cancelChat(requestId).catch(() => undefined);
+    localRequestIdRef.current = null;
+    setNotice("Generation stopped.");
+    setMessages((current) => current.map((item) => item.pending ? { ...item, content: item.content || "Generation stopped.", pending: false } : item));
+  };
   const lastAssistantResponse = [...messages].reverse().find((message) => message.role === "assistant" && !message.pending)?.content;
 
   async function submit(event?: FormEvent, dictatedMessage?: string) {
@@ -190,6 +198,7 @@ export function ChatWorkspace() {
 
       if (window.jverseDesktop?.localAgent) {
         const requestId = crypto.randomUUID();
+        localRequestIdRef.current = requestId;
         let streamError: Error | null = null;
         const unsubscribe = window.jverseDesktop.localAgent.onEvent(({ requestId: receivedId, event: rawEvent }) => {
           if (receivedId !== requestId || streamError) return;
@@ -202,6 +211,7 @@ export function ChatWorkspace() {
           if (streamError) throw streamError;
         } finally {
           unsubscribe();
+          if (localRequestIdRef.current === requestId) localRequestIdRef.current = null;
         }
         return;
       }
@@ -243,6 +253,7 @@ export function ChatWorkspace() {
         : item));
     } finally {
       abortRef.current = null;
+      localRequestIdRef.current = null;
       setStatus("ready");
     }
   }

@@ -126,6 +126,8 @@ app.whenReady().then(() => {
     const target = mainWindow;
     if (target && !target.isDestroyed()) target.webContents.send("desktop:local-agent:progress", message);
   });
+  // Warm the private Agent while the dashboard loads so the first prompt does not pay a cold-start penalty.
+  void localAgent.start().catch(() => undefined);
   registerDesktopIpc(updater, desktopBridge, runtimeManager, localAgent, desktopAuth);
   desktopBridge.start();
   createTray();

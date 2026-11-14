@@ -18,6 +18,33 @@ class CompatibilityOllamaGateway(ModelGateway):
         self.settings = settings
         self.desktop_repository = desktop_repository
 
+    def _request_options(self) -> dict[str, int | float]:
+        return {
+            "num_ctx": self.settings.ollama_context_tokens,
+            "num_predict": self.settings.ollama_max_tokens,
+            "temperature": 0.45,
+        }
+
+    async def warm(self) -> None:
+        """Load the local model before the user asks the first question."""
+        if not self.settings.compat_local_ollama:
+            return
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                await client.post(
+                    f"{str(self.settings.ollama_url).rstrip('/')}/api/chat",
+                    json={
+                        "model": self.settings.allowed_model,
+                        "messages": [{"role": "user", "content": "Ready."}],
+                        "stream": False,
+                        "keep_alive": self.settings.ollama_keep_alive,
+                        "options": {**self._request_options(), "num_predict": 1},
+                    },
+                )
+        except Exception:
+            # A missing or starting Ollama instance must not prevent the local API from starting.
+            return
+
     async def stream(self, messages: list[dict[str, str]], model: str, workspace_id: str, user_id: str) -> AsyncIterator[str]:
         if model != self.settings.allowed_model:
             raise RuntimeError("model_not_allowed")
@@ -29,7 +56,13 @@ class CompatibilityOllamaGateway(ModelGateway):
                 yield text
             return
         async with httpx.AsyncClient(timeout=None) as client:
-            async with client.stream("POST", f"{str(self.settings.ollama_url).rstrip('/')}/api/chat", json={"model": model, "messages": messages, "stream": True}) as response:
+            async with client.stream("POST", f"{str(self.settings.ollama_url).rstrip('/')}/api/chat", json={
+                "model": model,
+                "messages": messages,
+                "stream": True,
+                "keep_alive": self.settings.ollama_keep_alive,
+                "options": self._request_options(),
+            }) as response:
                 response.raise_for_status()
                 async for line in response.aiter_lines():
                     if not line:

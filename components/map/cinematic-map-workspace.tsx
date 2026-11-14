@@ -18,6 +18,7 @@ export type CinematicMapWorkspaceProps = {
   response?: string;
   responseStreaming?: boolean;
   onOpenResponse?: () => void;
+  onCancel?: () => void;
 };
 
 const MANILA: Point = { lat: 14.5995, lng: 120.9842, name: "Manila, Philippines" };
@@ -50,7 +51,7 @@ function straightLineKm(from: Point, to: Point) {
   return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-export function CinematicMapWorkspace({ immersive = false, initialPlace = "", controlsVisible = false, onVoiceCommand, onClose, response = "", responseStreaming = false, onOpenResponse }: CinematicMapWorkspaceProps) {
+export function CinematicMapWorkspace({ immersive = false, initialPlace = "", controlsVisible = false, onVoiceCommand, onClose, response = "", responseStreaming = false, onOpenResponse, onCancel }: CinematicMapWorkspaceProps) {
   const [view, setView] = useState<"globe" | "map">(initialPlace ? "map" : "globe");
   const [controlsOpen, setControlsOpen] = useState(controlsVisible);
   const [globeFailed, setGlobeFailed] = useState(false);
@@ -191,6 +192,6 @@ export function CinematicMapWorkspace({ immersive = false, initialPlace = "", co
       <div className="jv-map-control-actions"><button type="button" onClick={currentLocation}>USE MY LOCATION</button><button type="button" disabled={!destination || busy} onClick={requestDirections}>GET DIRECTIONS</button></div>
       {modePickerOpen ? <div className="jv-route-panel"><div><span>{route ? "ROUTE DISTANCE" : "SELECT TRAVEL MODE"}</span>{route ? <strong>{numberLabel(route.distanceKm)}</strong> : <strong>READY</strong>}</div><div className="jv-route-modes">{TRAVEL_MODES.map((item) => <button type="button" key={item.id} className={mode === item.id ? "is-active" : ""} disabled={busy} onClick={() => void calculateRoute(item.id)} title={item.detail}>{item.label}</button>)}</div><p>{route ? <>{mode.toUpperCase()} ESTIMATE <strong>{timeLabel(duration)}</strong>{route.source === "flight" ? " · DIRECT FLIGHT ESTIMATE" : ""}</> : "Choose how you would like to travel."}</p></div> : null}
     </motion.aside> : null}</AnimatePresence>
-    <div className="jv-map-command-dock">{response ? <button type="button" className="jv-map-response-preview" onClick={onOpenResponse}><span>JVERSE RESPONSE <em>{responseStreaming ? "STREAMING" : "COMPLETE"}</em></span><p>{response}</p></button> : null}<div className="jv-map-status" aria-live="polite"><span className={busy ? "jv-map-status-pulse" : ""} />{notice}</div><div className="jv-map-command-row"><VoiceControl onTranscript={(prompt) => void runCommand(prompt)} onStateChange={() => undefined} /><input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void runCommand(input); }} placeholder="Ask JVerse about a place, route, or anything else…" aria-label="Ask JVerse AI" /><button type="button" className="jv-map-send" onClick={() => void runCommand(input)} aria-label="Send to JVerse AI">➤</button></div></div>
+    <div className="jv-map-command-dock">{response ? <button type="button" className="jv-map-response-preview" onClick={onOpenResponse}><span>JVERSE RESPONSE <em>{responseStreaming ? "STREAMING" : "COMPLETE"}</em></span><p>{response}</p></button> : null}<div className="jv-map-status" aria-live="polite"><span className={busy ? "jv-map-status-pulse" : ""} />{notice}</div><div className="jv-map-command-row"><VoiceControl onTranscript={(prompt) => void runCommand(prompt)} onStateChange={() => undefined} /><input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void runCommand(input); }} placeholder="Ask JVerse about a place, route, or anything else…" aria-label="Ask JVerse AI" /><button type="button" className="jv-map-send" onClick={responseStreaming ? onCancel : () => void runCommand(input)} aria-label={responseStreaming ? "Cancel JVerse request" : "Send to JVerse AI"} title={responseStreaming ? "Cancel request" : "Send to JVerse AI"}>{responseStreaming ? "×" : "➤"}</button></div></div>
   </section>;
 }

@@ -7,9 +7,9 @@ import {
   Activity, BarChart3, Bot, Box, BrainCircuit, BriefcaseBusiness, CalendarDays,
   ChevronRight, Cloud, Code2, Database, Dumbbell, FileText, GraduationCap,
   HardDrive, Home, ImageIcon, Layers3, MapPinned, Maximize2, MessageSquare, Mic, Minimize2, PlusSquare,
-  Send, Settings, Sparkles, Volume2, Wifi, Zap,
+  Send, Settings, Sparkles, Volume2, Wifi, X, Zap,
 } from "lucide-react";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 import { VoiceControl } from "./voice/voice-control";
 import type { VoiceState } from "./voice/voice-orb";
@@ -25,9 +25,9 @@ type Module = {
 
 const modules: Module[] = [
   { title: "Chat Assistant", subtitle: "General Q&A, tasks, ideas", href: "/chat", icon: MessageSquare },
-  { title: "Code Assistant", subtitle: "Generate, debug, explain", href: "/developer", icon: Code2 },
+  { title: "Code Assistant", subtitle: "Generate, debug, explain", href: "/chat?prompt=Act%20as%20my%20code%20assistant.%20Ask%20what%20I%20am%20building%20and%20help%20me%20write%2C%20debug%2C%20or%20explain%20code.", icon: Code2 },
   { title: "Project Manager", subtitle: "Plan, track, and organize", href: "/projects", icon: FileText },
-  { title: "Business Assistant", subtitle: "Planning, sales insights", href: "/projects", icon: BarChart3 },
+  { title: "Business Assistant", subtitle: "Planning, sales insights", href: "/chat?prompt=Act%20as%20my%20business%20assistant.%20Help%20me%20with%20planning%2C%20sales%20insights%2C%20and%20next%20steps.", icon: BarChart3 },
   { title: "Health & Fitness", subtitle: "Goals, routines, progress", href: "/chat?prompt=Help%20me%20plan%20a%20healthy%20routine", icon: Dumbbell },
   { title: "Learning Hub", subtitle: "Skills, notes, and study", href: "/knowledge", icon: GraduationCap },
 ];
@@ -45,11 +45,11 @@ function JVerseMark({ small = false }: { small?: boolean }) {
   return <BrandLogo decorative className={`jv-brand-mark ${small ? "jv-brand-mark-small" : ""}`} />;
 }
 
-function StatusBar({ label, value, width, icon: Icon }: { label: string; value: string; width: string; icon: typeof Activity }) {
-  return <div className="jv-status-row">
+function StatusBar({ label, value, width, icon: Icon, href }: { label: string; value: string; width: string; icon: typeof Activity; href: string }) {
+  return <Link href={href} className="jv-status-row" title={`Open ${label}`}>
     <span className="jv-status-icon"><Icon size={18} /></span>
     <div className="min-w-0 flex-1"><div className="flex justify-between gap-2 text-xs font-semibold text-slate-100"><span>{label}</span><span>{value}</span></div><i className="jv-status-track"><b style={{ width }} /></i></div>
-  </div>;
+  </Link>;
 }
 
 function mapPlaceFromCommand(command: string) {
@@ -75,6 +75,9 @@ export function DashboardCommandCenter() {
   const [responseExpanded, setResponseExpanded] = useState(false);
   const [mapOverlay, setMapOverlay] = useState<{ place: string } | null>(null);
   const [mapControlsOpen, setMapControlsOpen] = useState(false);
+  const activeRequestId = useRef<string | null>(null);
+  const activePlayer = useRef<HTMLAudioElement | null>(null);
+  const speechDone = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const update = () => setNow(new Date());
@@ -91,9 +94,33 @@ export function DashboardCommandCenter() {
     copy.set(bytes);
     const url = URL.createObjectURL(new Blob([copy.buffer], { type: "audio/wav" }));
     const player = new Audio(url);
-    player.onended = () => { URL.revokeObjectURL(url); setVoiceState("idle"); };
-    player.onerror = () => { URL.revokeObjectURL(url); setVoiceState("error"); };
-    await player.play();
+    activePlayer.current?.pause();
+    activePlayer.current = player;
+    await new Promise<void>((resolve, reject) => {
+      const complete = () => {
+        if (activePlayer.current === player) activePlayer.current = null;
+        speechDone.current = null;
+        URL.revokeObjectURL(url);
+        setVoiceState("idle");
+        resolve();
+      };
+      speechDone.current = complete;
+      player.onended = complete;
+      player.onerror = () => { if (activePlayer.current === player) activePlayer.current = null; speechDone.current = null; URL.revokeObjectURL(url); setVoiceState("error"); reject(new Error("Piper audio could not be played.")); };
+      void player.play().catch(reject);
+    });
+  };
+  const cancelPrompt = () => {
+    const requestId = activeRequestId.current;
+    if (requestId) void window.jverseDesktop?.localAgent.cancelChat(requestId).catch(() => undefined);
+    activeRequestId.current = null;
+    activePlayer.current?.pause();
+    activePlayer.current = null;
+    speechDone.current?.();
+    speechDone.current = null;
+    setRunning(false);
+    setVoiceState("idle");
+    setResponse((current) => current ? `${current}\n\n— Request cancelled.` : "Request cancelled.");
   };
   const launchPrompt = async (prompt: string) => {
     if (!prompt.trim() || running) return;
@@ -117,6 +144,7 @@ export function DashboardCommandCenter() {
     setResponse("");
     setVoiceState("thinking");
     const requestId = crypto.randomUUID();
+    activeRequestId.current = requestId;
     let answer = "";
     const unsubscribe = window.jverseDesktop.localAgent.onEvent(({ requestId: receivedId, event }) => {
       if (receivedId !== requestId || !event || typeof event !== "object") return;
@@ -127,15 +155,20 @@ export function DashboardCommandCenter() {
     });
     try {
       await window.jverseDesktop.localAgent.chat(requestId, prompt.trim());
+      if (activeRequestId.current !== requestId) return;
       if (!answer.trim()) throw new Error("The local Agent did not return a response.");
       setVoiceState("speaking");
       await playLocalSpeech(answer);
     } catch (error) {
+      if (activeRequestId.current !== requestId) return;
       setVoiceState("error");
       setResponse(error instanceof Error ? error.message : "JVerse could not complete that command.");
     } finally {
       unsubscribe();
-      setRunning(false);
+      if (activeRequestId.current === requestId) {
+        activeRequestId.current = null;
+        setRunning(false);
+      }
     }
   };
   const submit = (event: FormEvent) => { event.preventDefault(); void launchPrompt(draft); setDraft(""); };
@@ -152,7 +185,7 @@ export function DashboardCommandCenter() {
     </header>
 
     <aside className="jv-icon-rail" aria-label="Primary navigation">
-      <Link href="/dashboard" aria-label="Dashboard"><Home /></Link><Link href="/chat" aria-label="Chat"><MessageSquare /></Link><Link href="/knowledge" aria-label="Knowledge"><Box /></Link><Link href="/map" aria-label="AI Map"><MapPinned /></Link><Link href="/developer" aria-label="Developer"><Code2 /></Link><Link href="/projects" aria-label="Projects"><BarChart3 /></Link><Link href="/settings" aria-label="Settings"><Settings /></Link>
+      <Link href="/dashboard" aria-label="Dashboard" title="Dashboard"><Home /></Link><Link href="/chat" aria-label="Chat Assistant" title="Chat Assistant"><MessageSquare /></Link><Link href="/knowledge" aria-label="Knowledge Base" title="Knowledge Base"><Box /></Link><Link href="/map" aria-label="AI Map" title="AI Map"><MapPinned /></Link><Link href="/developer" aria-label="Developer Assistant" title="Developer Assistant"><Code2 /></Link><Link href="/projects" aria-label="Projects" title="Projects"><BarChart3 /></Link><Link href="/settings" aria-label="Settings" title="Settings and local runtime"><Settings /></Link>
     </aside>
 
     <main className="jv-command-main">
@@ -174,14 +207,14 @@ export function DashboardCommandCenter() {
       </section>
 
       <section className="jv-right-stack">
-        <div className="jv-hud-box jv-system-panel"><h2><Activity /> SYSTEM STATUS</h2><StatusBar label="AI Engine" value="100%" width="100%" icon={BrainCircuit} /><StatusBar label="Knowledge Base" value="98%" width="98%" icon={Layers3} /><StatusBar label="Local Resources" value="92%" width="92%" icon={Database} /></div>
+        <div className="jv-hud-box jv-system-panel"><h2><Activity /> SYSTEM STATUS</h2><StatusBar label="AI Engine" value="100%" width="100%" icon={BrainCircuit} href="/settings#desktop-runtime" /><StatusBar label="Knowledge Base" value="98%" width="98%" icon={Layers3} href="/knowledge" /><StatusBar label="Local Resources" value="92%" width="92%" icon={Database} href="/settings#desktop-runtime" /></div>
         <div className="jv-hud-box jv-actions-panel"><h2><Zap /> QUICK ACTIONS</h2><div>{quickActions.map(({ label, icon: Icon, prompt }) => <button type="button" key={label} onClick={() => void launchPrompt(prompt)}><Icon size={28} /><span>{label}</span></button>)}</div></div>
       </section>
     </main>
 
     <footer className="jv-command-footer">
       <div className="jv-footer-ident"><Activity size={39} /><p><b>JVerse AI v2.0</b><span>AI • Productivity • Development • Business</span></p></div>
-      <form onSubmit={submit} className="jv-command-input"><Mic size={23} /><input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Ask JVerse AI anything..." aria-label="Ask JVerse AI anything" /><VoiceControl onTranscript={(prompt) => void launchPrompt(prompt)} onStateChange={setVoiceState} /><button type="submit" aria-label="Send command" disabled={!draft.trim() || running}><Send size={25} /></button></form>
+      <form onSubmit={submit} className="jv-command-input"><Mic size={23} /><input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Ask JVerse AI anything..." aria-label="Ask JVerse AI anything" /><VoiceControl onTranscript={(prompt) => void launchPrompt(prompt)} onStateChange={setVoiceState} /><button type={running ? "button" : "submit"} onClick={running ? cancelPrompt : undefined} aria-label={running ? "Cancel JVerse request" : "Send command"} title={running ? "Cancel request" : "Send command"} disabled={!running && !draft.trim()}>{running ? <X size={25} /> : <Send size={25} />}</button></form>
       <div className="jv-footer-powered"><BarChart3 className="text-cyan-300" size={40} /><JVerseMark small /><span>Powered by JVerse</span></div>
     </footer>
     <div className="jv-command-corners" aria-hidden><i /><i /><i /><i /></div>
@@ -193,7 +226,7 @@ export function DashboardCommandCenter() {
       </motion.section>
     </motion.div> : null}</AnimatePresence>
     <AnimatePresence>{mapOverlay ? <motion.section className="jv-ai-map-overlay" aria-label="JVerse AI Map" initial={{ opacity: 0, scale: 1.04 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: .98 }} transition={{ duration: .42, ease: "easeOut" }}>
-          <CinematicMapWorkspace immersive initialPlace={mapOverlay.place} controlsVisible={mapControlsOpen} onClose={() => { setMapOverlay(null); setMapControlsOpen(false); }} onVoiceCommand={launchPrompt} response={response} responseStreaming={running} onOpenResponse={() => setResponseExpanded(true)} />
+          <CinematicMapWorkspace immersive initialPlace={mapOverlay.place} controlsVisible={mapControlsOpen} onClose={() => { setMapOverlay(null); setMapControlsOpen(false); }} onVoiceCommand={launchPrompt} response={response} responseStreaming={running} onOpenResponse={() => setResponseExpanded(true)} onCancel={cancelPrompt} />
     </motion.section> : null}</AnimatePresence>
   </div>;
 }

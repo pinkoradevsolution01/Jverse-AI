@@ -23,6 +23,7 @@ const desktopApi: DesktopApi = {
     prepare: () => ipcRenderer.invoke("desktop:local-agent:prepare") as Promise<void>,
     start: () => ipcRenderer.invoke("desktop:local-agent:start") as Promise<void>,
     chat: (requestId, message) => ipcRenderer.invoke("desktop:local-agent:chat", requestId, message) as Promise<void>,
+    cancelChat: (requestId) => ipcRenderer.invoke("desktop:local-agent:cancel-chat", requestId) as Promise<boolean>,
     transcribe: (audio) => ipcRenderer.invoke("desktop:local-agent:transcribe", audio),
     speak: (text) => ipcRenderer.invoke("desktop:local-agent:speak", text) as Promise<Uint8Array>,
     onProgress: (listener) => {

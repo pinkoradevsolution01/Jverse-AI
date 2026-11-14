@@ -58,9 +58,14 @@ export function registerDesktopIpc(updater: DesktopUpdater, bridge: AgentDesktop
     if (typeof requestId !== "string" || requestId.length < 8 || requestId.length > 128) throw new Error("Invalid local chat request.");
     if (typeof message !== "string" || !message.trim() || message.length > 24_000) throw new Error("Invalid local chat message.");
     const window = parentWindow(event);
-    await localAgent.chat(message, (streamEvent) => {
+    await localAgent.chat(requestId, message, (streamEvent) => {
       if (!window.isDestroyed()) window.webContents.send("desktop:local-agent:event", { requestId, event: streamEvent });
     });
+  });
+  ipcMain.handle("desktop:local-agent:cancel-chat", (event, requestId: unknown) => {
+    assertTrustedRenderer(event);
+    if (typeof requestId !== "string" || requestId.length < 8 || requestId.length > 128) throw new Error("Invalid local chat request.");
+    return localAgent.cancelChat(requestId);
   });
   ipcMain.handle("desktop:local-agent:transcribe", async (event, audio: unknown) => {
     assertTrustedRenderer(event);

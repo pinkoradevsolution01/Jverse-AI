@@ -62,6 +62,7 @@ export type DesktopApi = {
     prepare(): Promise<void>;
     start(): Promise<void>;
     chat(requestId: string, message: string): Promise<void>;
+    cancelChat(requestId: string): Promise<boolean>;
     transcribe(audio: Uint8Array): Promise<{ transcript: string; wake_word_detected: boolean; command?: string }>;
     speak(text: string): Promise<Uint8Array>;
     onProgress(listener: (message: string) => void): () => void;

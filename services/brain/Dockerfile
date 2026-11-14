@@ -10,10 +10,10 @@ COPY services/brain/app ./app
 RUN pip install --no-cache-dir . \
     && mkdir -p /app/models \
     && python -m piper.download_voices --download-dir /app/models en_US-lessac-medium \
-    && python -c "from faster_whisper import WhisperModel; WhisperModel('base.en', device='cpu', compute_type='int8')"
+    && python -c "from faster_whisper import WhisperModel; WhisperModel('base', device='cpu', compute_type='int8')"
 
 ENV PIPER_MODEL_PATH=/app/models/en_US-lessac-medium.onnx
-ENV WHISPER_MODEL=base.en
+ENV WHISPER_MODEL=base
 ENV WHISPER_DEVICE=cpu
 ENV WHISPER_COMPUTE_TYPE=int8
 
