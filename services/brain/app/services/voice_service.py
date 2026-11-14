@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import tempfile
 import sys
 import shutil
@@ -44,7 +45,19 @@ class VoiceService:
             await asyncio.to_thread(Path(source).write_bytes, audio)
 
             def run() -> str:
-                segments, _info = self._whisper().transcribe(source, vad_filter=True, beam_size=3)
+                # A lightweight vocabulary hint substantially improves short
+                # spoken destination commands without changing the model or
+                # slowing normal conversation transcription.
+                segments, _info = self._whisper().transcribe(
+                    source,
+                    vad_filter=True,
+                    beam_size=3,
+                    initial_prompt=(
+                        "JVerse AI map command. Place names may include Manila, Makati, "
+                        "BGC, Bonifacio Global City, Taguig, Quezon City, Pasig, Ortigas, "
+                        "Alabang, Baguio, Cebu, Davao, Tokyo, Osaka, and Philippines."
+                    ),
+                )
                 return " ".join(segment.text.strip() for segment in segments).strip()
 
             return await asyncio.to_thread(run)
@@ -63,20 +76,35 @@ class VoiceService:
 
     async def synthesize(self, text: str) -> bytes:
         piper_executable = Path(sys.executable).parent / ("piper.exe" if sys.platform == "win32" else "piper")
-        executable = self.settings.piper_executable or shutil.which("piper") or str(piper_executable)
+        # Always prefer the Piper installed in JVerse's private virtual
+        # environment. A global `piper` on PATH can point to a different
+        # Python package/version and was causing desktop speech failures.
+        executable = self.settings.piper_executable or (str(piper_executable) if piper_executable.is_file() else shutil.which("piper"))
         bundled_model = Path(__file__).resolve().parents[2] / "models" / "en_US-ryan-high.onnx"
         model = self.settings.piper_model_path or (str(bundled_model) if bundled_model.is_file() else None)
         if not model:
             raise VoiceUnavailableError("Piper is not configured on this JVerse Agent host.")
-        if not Path(executable).is_file() or not Path(model).is_file():
+        model_path = Path(model)
+        config_path = Path(f"{model}.json")
+        if not executable or not Path(executable).is_file() or not model_path.is_file() or not config_path.is_file():
             raise VoiceUnavailableError("Piper executable or voice model was not found.")
+        # Piper is happiest with natural, line-sized sentences. Remove visual
+        # Markdown before speech while preserving English, Filipino, and
+        # Taglish wording in the assistant response.
+        spoken_text = re.sub(r"```[\s\S]*?```", " Code omitted. ", text)
+        spoken_text = re.sub(r"[`*_>#]+", " ", spoken_text)
+        spoken_text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", spoken_text)
+        spoken_text = re.sub(r"[\t\r ]+", " ", spoken_text).strip()
+        spoken_text = re.sub(r"(?<=[.!?])\s+", "\n", spoken_text)[:6_000]
+        if not spoken_text:
+            raise VoiceUnavailableError("There is no readable assistant response to speak.")
         descriptor, output = tempfile.mkstemp(prefix="jverse-piper-", suffix=".wav")
         os.close(descriptor)
         try:
-            process = await asyncio.create_subprocess_exec(executable, "--model", model, "--output_file", output, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
-            _stdout, stderr = await process.communicate(text.encode("utf-8"))
+            process = await asyncio.create_subprocess_exec(executable, "--model", str(model_path), "--config", str(config_path), "--output_file", output, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
+            _stdout, stderr = await process.communicate(spoken_text.encode("utf-8"))
             if process.returncode != 0:
-                raise VoiceUnavailableError(f"Piper failed: {stderr.decode('utf-8', errors='replace')[:300]}")
+                raise VoiceUnavailableError("JVerse voice could not synthesize this response. Try again or use the browser voice fallback.")
             return await asyncio.to_thread(Path(output).read_bytes)
         finally:
             Path(output).unlink(missing_ok=True)

@@ -55,9 +55,10 @@ export class LocalAgentManager {
   private python() { return process.platform === "win32" ? path.join(this.venvDir(), "Scripts", "python.exe") : path.join(this.venvDir(), "bin", "python"); }
   private modelDir() { return path.join(this.runtimeDir(), "models"); }
   private modelPath() { return path.join(this.modelDir(), `${MODEL}.onnx`); }
+  private modelConfigPath() { return path.join(this.modelDir(), `${MODEL}.onnx.json`); }
   private readyFile() { return path.join(this.runtimeDir(), ".agent-ready"); }
   private brainDir() { return app.isPackaged ? path.join(process.resourcesPath, "brain") : path.resolve(app.getAppPath(), "..", "services", "brain"); }
-  private installed() { return fs.existsSync(this.python()) && fs.existsSync(this.readyFile()) && fs.existsSync(this.modelPath()) && fs.existsSync(path.join(this.brainDir(), "pyproject.toml")); }
+  private installed() { return fs.existsSync(this.python()) && fs.existsSync(this.readyFile()) && fs.existsSync(this.modelPath()) && fs.existsSync(this.modelConfigPath()) && fs.existsSync(path.join(this.brainDir(), "pyproject.toml")); }
   private url(pathname: string) { return `http://${LOCAL_HOST}:${LOCAL_PORT}${pathname}`; }
 
   async status(): Promise<DesktopLocalAgentStatus> {

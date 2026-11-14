@@ -288,8 +288,20 @@ export function VoiceControl({ onTranscript, speakText, isThinking = false, onSt
       player.onended = () => { URL.revokeObjectURL(url); setState("idle"); setNotice(""); };
       player.onerror = () => { URL.revokeObjectURL(url); setState("error"); setNotice("Piper audio could not be played."); };
       await player.play();
-    } catch (error) {
-      setState("error"); setNotice(error instanceof Error ? error.message : "Piper speech could not start.");
+    } catch {
+      // Local Piper is preferred, but an unavailable voice runtime must not
+      // leave the assistant silent or expose a Python traceback to the user.
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(speakText);
+        utterance.lang = /[Ã±Ã¡Ã©Ã­Ã³Ãº]/i.test(speakText) ? "fil-PH" : (navigator.language || "en-US");
+        utterance.onend = () => { setState("idle"); setNotice("Using system voice while JVerse voice recovers."); };
+        utterance.onerror = () => { setState("error"); setNotice("JVerse voice is unavailable. Please try again after restarting the local Agent."); };
+        window.speechSynthesis.speak(utterance);
+        setNotice("Using system voice while JVerse voice recovers.");
+        return;
+      }
+      setState("error"); setNotice("JVerse voice is unavailable. Restart the local Agent, then try again.");
     }
   }, [speakText]);
 

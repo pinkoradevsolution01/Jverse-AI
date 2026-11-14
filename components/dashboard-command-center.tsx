@@ -15,6 +15,7 @@ import { VoiceControl } from "./voice/voice-control";
 import type { VoiceState } from "./voice/voice-orb";
 import { BrandLogo } from "./brand-logo";
 import { CinematicMapWorkspace } from "./map/cinematic-map-workspace";
+import { parseMapVoiceCommand } from "../lib/maps/voice-command";
 
 type Module = {
   title: string;
@@ -53,16 +54,9 @@ function StatusBar({ label, value, width, icon: Icon, href }: { label: string; v
 }
 
 function mapPlaceFromCommand(command: string) {
-  if (!/\b(map|directions?|navigate|route)\b/i.test(command)) return null;
-  const place = command
-    .replace(/^\s*(?:hey\s+)?jverse[\s,:-]*/i, "")
-    .replace(/^(?:please\s+)?(?:open|show|launch)\s+(?:(?:a|the)\s+)?map(?:\s+(?:to|in|at|for|of))?\s*/i, "")
-    .replace(/^map(?:\s+(?:to|in|at|for|of))?\s*/i, "")
-    .replace(/^(?:get\s+)?directions?\s+(?:to|for)\s*/i, "")
-    .replace(/^navigate\s+(?:to\s*)?/i, "")
-    .replace(/^route\s+(?:to\s*)?/i, "")
-    .trim();
-  return place || "";
+  const parsed = parseMapVoiceCommand(command);
+  if (parsed.intent === "open" || parsed.intent === "search" || parsed.intent === "directions") return parsed.place ?? "";
+  return null;
 }
 
 export function DashboardCommandCenter() {
@@ -158,7 +152,13 @@ export function DashboardCommandCenter() {
       if (activeRequestId.current !== requestId) return;
       if (!answer.trim()) throw new Error("The local Agent did not return a response.");
       setVoiceState("speaking");
-      await playLocalSpeech(answer);
+      try {
+        await playLocalSpeech(answer);
+      } catch {
+        // The response is already visible. Never replace it with a raw local
+        // speech-runtime failure; the user can retry voice from the controls.
+        setVoiceState("idle");
+      }
     } catch (error) {
       if (activeRequestId.current !== requestId) return;
       setVoiceState("error");

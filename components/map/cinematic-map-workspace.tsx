@@ -4,10 +4,11 @@ import { AnimatePresence, motion } from "framer-motion";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { VoiceControl } from "../voice/voice-control";
+import { parseMapVoiceCommand, type MapTravelMode } from "../../lib/maps/voice-command";
 
 type Point = { lat: number; lng: number; name: string };
 type Route = { distanceKm: number; durationMinutes: number; geometry: Point[]; source: "road" | "flight" };
-type Mode = "walk" | "motorcycle" | "car" | "bus" | "airplane";
+type Mode = MapTravelMode;
 
 export type CinematicMapWorkspaceProps = {
   immersive?: boolean;
@@ -24,10 +25,6 @@ export type CinematicMapWorkspaceProps = {
 const MANILA: Point = { lat: 14.5995, lng: 120.9842, name: "Manila, Philippines" };
 const MapCanvas = dynamic(() => import("./map-canvas").then((module) => module.MapCanvas), { ssr: false, loading: () => <div className="jv-map-globe-loading">INITIALIZING LIVE MAP…</div> });
 const MapGlobeCanvas = dynamic(() => import("./map-globe-canvas").then((module) => module.MapGlobeCanvas), { ssr: false, loading: () => <div className="jv-map-globe-loading">INITIALIZING GLOBAL NETWORK…</div> });
-
-function readPlace(command: string) {
-  return command.replace(/^\s*(?:please\s+)?(?:open|show(?:\s+me)?|find|locate|where\s+is|navigate(?:\s+me)?|take\s+me|(?:get\s+)?directions?\s+(?:to\s+)?|route\s+(?:to\s+)?)\s*(?:the\s+)?(?:map\s+(?:of|to|for)\s*)?/i, "").replace(/[?.!]+$/g, "").trim();
-}
 
 function numberLabel(value: number) { return value < 10 ? `${value.toFixed(1)} km` : `${Math.round(value)} km`; }
 function timeLabel(value: number) {
@@ -146,24 +143,22 @@ export function CinematicMapWorkspace({ immersive = false, initialPlace = "", co
     const command = raw.trim();
     if (!command) return;
     setInput("");
-    if (/\b(close|hide|exit|dismiss)\s+(?:the\s+)?(?:map|navigation|globe)/i.test(command)) { onClose?.(); return; }
-    if (/\b(open|show)\s+(?:the\s+)?(?:map\s+)?(?:controls|buttons|options)/i.test(command)) { setControlsOpen(true); setNotice("Map controls are now visible."); return; }
-    if (/\b(?:use|find|locate)\s+(?:my\s+)?(?:current\s+)?location\b/i.test(command)) { currentLocation(); return; }
-    const requestedMode = /\b(?:motorbike|motor bike)\b/i.test(command) ? "motorcycle" : TRAVEL_MODES.find(({ id }) => new RegExp(`\\b${id}\\b`, "i").test(command))?.id;
-    if (requestedMode && destination) { await calculateRoute(requestedMode); return; }
-    if (/^(?:get\s+)?(?:the\s+)?(?:directions?|route)(?:\s+from\s+there)?[?.!]*$/i.test(command)) { requestDirections(); return; }
-    if (/\b(?:directions?|route|navigate|map|location|where is|show me)\b/i.test(command)) {
-      const place = readPlace(command);
-      if (place && !/^map$/i.test(place)) {
-        const found = await search(place, true);
-        if (found && /\b(?:directions?|route)\b/i.test(command)) {
-          setModePickerOpen(true);
-          setNotice("Destination found. How would you like to travel: Walk, Motorcycle, Car, Bus, or Airplane?");
-        }
-        return;
+    const parsed = parseMapVoiceCommand(command);
+    if (parsed.intent === "close") { onClose?.(); return; }
+    if (parsed.intent === "controls") { setControlsOpen(true); setNotice("Map controls are now visible."); return; }
+    if (parsed.intent === "current_location") { currentLocation(); return; }
+    if (parsed.intent === "open") { setView("globe"); setNotice("Global map interface opened. Name any city, landmark, or address."); return; }
+    if (parsed.intent === "travel_mode" && parsed.mode && destination) { await calculateRoute(parsed.mode); return; }
+    if (parsed.intent === "directions" && !parsed.place) { requestDirections(); return; }
+    if ((parsed.intent === "search" || parsed.intent === "directions") && parsed.place) {
+      const found = await search(parsed.place, true);
+      if (!found) return;
+      if (parsed.mode) { await calculateRoute(parsed.mode, origin, found); return; }
+      if (parsed.intent === "directions") {
+        setModePickerOpen(true);
+        setNotice("Destination found. How would you like to travel: Walk, Motorcycle, Car, Bus, or Airplane?");
       }
-      if (/\b(?:directions?|route)\b/i.test(command)) { requestDirections(); return; }
-      setView("globe"); setNotice("Global map interface opened."); return;
+      return;
     }
     setNotice("JVerse is processing your request…");
     await onVoiceCommand?.(command);
